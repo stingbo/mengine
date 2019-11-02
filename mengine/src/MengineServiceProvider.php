@@ -3,29 +3,26 @@
 namespace StingBo\Mengine;
 
 use Illuminate\Support\ServiceProvider;
-use StingBo\Mengine\Services\MengineService;
 
 class MengineServiceProvider extends ServiceProvider
 {
-    protected $defer = true;
+    /**
+     * Register services.
+     */
+    public function register()
+    {
+        $this->app->singleton('mengine', function () {
+            return $this->app->make('StingBo\Mengine\Services\MengineService');
+        });
+    }
 
     /**
-     * boot.
+     * Bootstrap services.
      */
-    public function boot(): void
+    public function boot()
     {
         $this->publishes([
             __DIR__.'/config/mengine.php' => config_path('mengine.php'),
         ]);
-    }
-
-    /**
-     * register.
-     */
-    public function register(): void
-    {
-        $this->app->singleton(MengineService::class, function () {
-            return new MengineService();
-        });
     }
 }
