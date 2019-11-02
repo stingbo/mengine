@@ -4,7 +4,7 @@ namespace StingBo\Mengine;
 
 use Illuminate\Support\Facades\Facade;
 
-class Mengine extends Facade
+class MengineFacade extends Facade
 {
     protected static function getFacadeAccessor()
     {

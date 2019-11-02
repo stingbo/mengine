@@ -3,6 +3,7 @@
 namespace StingBo\Mengine;
 
 use Illuminate\Support\ServiceProvider;
+use StingBo\Mengine\Services\MengineService;
 
 class MengineServiceProvider extends ServiceProvider
 {
@@ -14,7 +15,7 @@ class MengineServiceProvider extends ServiceProvider
     public function boot(): void
     {
         $this->publishes([
-            __DIR__.'/config/uploader.php' => config_path('uploader.php'),
+            __DIR__.'/config/mengine.php' => config_path('mengine.php'),
         ]);
     }
 
@@ -23,8 +24,8 @@ class MengineServiceProvider extends ServiceProvider
      */
     public function register(): void
     {
-        $this->app->singleton(Mengine::class, function () {
-            return new Mengine();
+        $this->app->singleton(MengineService::class, function () {
+            return new MengineService();
         });
     }
 }
