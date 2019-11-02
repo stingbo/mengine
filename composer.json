@@ -1,0 +1,29 @@
+{
+    "name": "sting_bo/mengine",
+    "description": "Matching Engine For Laravel",
+    "require": {
+        "predis/predis": "^1.1"
+    },
+    "license": "MIT",
+    "authors": [
+        {
+            "name": "sb",
+            "email": "sting_bo@163.com"
+        }
+    ],
+    "autoload": {
+        "psr-4": {
+            "StingBo\\Mengine\\": "src/"
+        }
+    },
+    "extra": {
+        "laravel": {
+            "providers": [
+                "StingBo\\Mengine\\MengineServiceProvider"
+            ],
+            "aliases": {
+                "Mengine": "StingBo\\Mengine\\MengineFacade"
+            }
+        }
+    }
+}
