@@ -22,7 +22,7 @@ class MengineServiceProvider extends ServiceProvider
     public function boot()
     {
         $this->publishes([
-            __DIR__.'/config/mengine.php' => config_path('mengine.php'),
+            __DIR__.'/../config/mengine.php' => config_path('mengine.php'),
         ]);
     }
 }
