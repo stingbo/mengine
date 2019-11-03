@@ -17,7 +17,7 @@ abstract class AbstractOrder
         $this->setTransaction($transaction);
         $this->setVolume($volume);
         $this->setPrice($price);
-        $this->setOrderHashKey();
+        $this->setOrderHashField();
     }
 
     public function setUuid($uuid)
@@ -50,20 +50,23 @@ abstract class AbstractOrder
         return $this->order->price = $price;
     }
 
-    public function setOrderHashKey()
+    /**
+     * 委托标识池field.
+     */
+    public function setOrderHashField()
     {
-        return $this->order_hash_field = $this->order->symbol.':'.$this->order->oid;
+        return $this->order_hash_field = $this->order->symbol.':'.$this->order->uuid.':'.$this->order->oid;
     }
 
     /**
      * in queue.
      */
-    abstract public function pushQueue(Order $order);
+    abstract public function pushCommissionQueue(Order $order);
 
     /**
      * in hash.
      */
-    abstract public function pushHash(Order $order);
+    abstract public function pushCommissionHash(Order $order);
 
     /**
      * delete order.

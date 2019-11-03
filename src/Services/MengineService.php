@@ -5,10 +5,14 @@ namespace StingBo\Mengine\Services;
 use StingBo\Mengine\Core\Order;
 use StingBo\Mengine\Core\AbstractOrder;
 use StingBo\Mengine\Events\PushQueueEvent;
+use StingBo\Mengine\Events\DeleteOrderEvent;
 use Illuminate\Support\Facades\Redis;
 
 class MengineService extends AbstractOrder
 {
+    /**
+     * 获取委托单.
+     */
     public function getOrder()
     {
         return $this->order;
@@ -17,19 +21,31 @@ class MengineService extends AbstractOrder
     /**
      * 入委托队列.
      */
-    public function pushQueue(Order $order)
+    public function pushCommissionQueue(Order $order)
     {
-        $this->pushHash($order);
+        // 1. 放入标识池
+        $this->pushCommissionHash($order);
 
+        // 2. 入委托队列
         event(new PushQueueEvent($order));
     }
 
     /**
      * 放入hash标识池.
      */
-    public function pushHash(Order $order)
+    public function pushCommissionHash(Order $order)
     {
-        Redis::hset($order->symbol, [$this->order_hash_field, 1]);
+        Redis::hset($order->symbol, $this->order_hash_field, 1);
+    }
+
+    /**
+     * 从标识池删除.
+     */
+    public function deleteHashOrder(Order $order)
+    {
+        if (Redis::hexists($order->symbol, $this->order_hash_field)) {
+            Redis::hdel($order->symbol, $this->order_hash_field);
+        }
     }
 
     /**
@@ -49,21 +65,26 @@ class MengineService extends AbstractOrder
      */
     public function deleteOrder(Order $order)
     {
-        // 第一步，先删除标识池，避免队列有积压时队列慢问题
-        if (Redis::hexists($order->symbol, $this->order_hash_field)) {
-            Reds::hdel($order->symbol, $this->order_hash_field);
-        }
+        // 第一步，从标识池删除，避免队列有积压时未消费问题
+        $this->deleteHashOrder($order);
 
 
-        // 第二步，删除委托池
-        if (true) {
-        }
+        // 第二步，从委托池里删除
+        //$this->deleteCommissionPoolOrder($order);
+        event(new DeleteOrderEvent($order));
     }
 
     /**
      * 放入委托池.
      */
     public function pushCommissionPool(Order $order)
+    {
+    }
+
+    /**
+     * 从委托池删除.
+     */
+    public function deleteCommissionPoolOrder(Order $order)
     {
     }
 }
