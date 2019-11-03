@@ -25,7 +25,8 @@ class PushQueueEventListener
      */
     public function handle(PushQueueEvent $event)
     {
-        echo 'test event';
-        die;
+        $order = $event->order;
+
+        return true;
     }
 }

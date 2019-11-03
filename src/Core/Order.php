@@ -4,6 +4,8 @@ namespace StingBo\Mengine\Core;
 
 class Order
 {
+    public $uuid;
+
     public $oid;
 
     /**

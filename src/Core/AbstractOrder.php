@@ -6,17 +6,23 @@ abstract class AbstractOrder
 {
     public $order;
 
-    public $order_hash_key;
+    public $order_hash_field;
 
-    public function __construct($oid, $symbol, $transaction, $volume, $price)
+    public function __construct($uuid, $oid, $symbol, $transaction, $volume, $price)
     {
         $this->order = new Order();
+        $this->setUuid($uuid);
         $this->setOid($oid);
         $this->setSymbol($symbol);
         $this->setTransaction($transaction);
         $this->setVolume($volume);
         $this->setPrice($price);
         $this->setOrderHashKey();
+    }
+
+    public function setUuid($uuid)
+    {
+        return $this->order->uuid = $uuid;
     }
 
     public function setOid($oid)
@@ -46,7 +52,7 @@ abstract class AbstractOrder
 
     public function setOrderHashKey()
     {
-        return $this->order_hash_key = $this->order->symbol.':'.$this->order->oid;
+        return $this->order_hash_field = $this->order->symbol.':'.$this->order->oid;
     }
 
     /**
