@@ -70,21 +70,6 @@ class MengineService extends AbstractOrder
 
 
         // 第二步，从委托池里删除
-        //$this->deleteCommissionPoolOrder($order);
         event(new DeleteOrderEvent($order));
-    }
-
-    /**
-     * 放入委托池.
-     */
-    public function pushCommissionPool(Order $order)
-    {
-    }
-
-    /**
-     * 从委托池删除.
-     */
-    public function deleteCommissionPoolOrder(Order $order)
-    {
     }
 }
