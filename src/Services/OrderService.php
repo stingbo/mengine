@@ -5,10 +5,14 @@ namespace StingBo\Mengine\Services;
 use StingBo\Mengine\Core\Order;
 use StingBo\Mengine\Core\AbstractOrder;
 
-class OrderService extends AbstractOrder
+class OrderService
 {
-    public function setOrder(Order $order)
+    public function getOrder()
     {
-        return $order;
+        return $this->order;
+    }
+
+    public function push(Order $order)
+    {
     }
 }
