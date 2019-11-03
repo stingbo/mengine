@@ -4,8 +4,6 @@ namespace StingBo\Mengine\Listeners;
 
 use StingBo\Mengine\Events\PushQueueEvent;
 use StingBo\Mengine\Services\CommissionPoolService;
-use Illuminate\Contracts\Queue\ShouldQueue;
-use Illuminate\Queue\InteractsWithQueue;
 
 class PushQueueEventListener
 {
@@ -13,8 +11,6 @@ class PushQueueEventListener
 
     /**
      * Create the event listener.
-     *
-     * @return void
      */
     public function __construct(CommissionPoolService $service)
     {
@@ -24,12 +20,11 @@ class PushQueueEventListener
     /**
      * Handle the event.
      *
-     * @param  object  $event
-     * @return void
+     * @param object $event
      */
     public function handle(PushQueueEvent $event)
     {
-        $this->service->pushCommissionPool($event->order);
+        $this->service->pushPool($event->order);
 
         return true;
     }

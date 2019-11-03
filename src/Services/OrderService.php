@@ -3,7 +3,6 @@
 namespace StingBo\Mengine\Services;
 
 use StingBo\Mengine\Core\Order;
-use StingBo\Mengine\Core\AbstractOrder;
 
 class OrderService
 {

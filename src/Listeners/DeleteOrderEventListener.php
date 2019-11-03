@@ -4,8 +4,6 @@ namespace StingBo\Mengine\Listeners;
 
 use StingBo\Mengine\Events\DeleteOrderEvent;
 use StingBo\Mengine\Services\CommissionPoolService;
-use Illuminate\Contracts\Queue\ShouldQueue;
-use Illuminate\Queue\InteractsWithQueue;
 
 class DeleteOrderEventListener
 {
@@ -13,8 +11,6 @@ class DeleteOrderEventListener
 
     /**
      * Create the event listener.
-     *
-     * @return void
      */
     public function __construct(CommissionPoolService $service)
     {
@@ -24,12 +20,11 @@ class DeleteOrderEventListener
     /**
      * Handle the event.
      *
-     * @param  object  $event
-     * @return void
+     * @param object $event
      */
     public function handle(DeleteOrderEvent $event)
     {
-        $this->service->deleteCommissionPoolOrder($event->order);
+        $this->service->deletePoolOrder($event->order);
 
         return true;
     }
