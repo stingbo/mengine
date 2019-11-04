@@ -67,8 +67,18 @@ class MengineService extends AbstractMengine
     /**
      * 获取深度列表.
      */
-    public function getDepth($symbol)
+    public function getDepth($symbol, $transaction)
     {
-        return Redis::zrange($symbol, 0, -1);
+        $list = [];
+        $prices = Redis::zrange($symbol.':'.$transaction, 0, -1);
+        foreach ($prices as $price) {
+            $volume = Redis::hget($symbol.':depth', $symbol.':depth:'.$price);
+            $list[] = [
+                'price' => $price,
+                'volume' => $volume,
+            ];
+        }
+
+        return $list;
     }
 }

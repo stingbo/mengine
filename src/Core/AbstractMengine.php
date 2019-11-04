@@ -19,5 +19,5 @@ abstract class AbstractMengine
      */
     abstract public function deleteOrder(Order $order);
 
-    abstract public function getDepth($symbol);
+    abstract public function getDepth($symbol, $transaction);
 }
