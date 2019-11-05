@@ -18,14 +18,14 @@ class DepthLinkService
     /**
      * 放入价格点对应的单据.
      */
-    public function pushDepthLink(Order $order)
+    public function pushDepthNode(Order $order)
     {
     }
 
     /**
      * 从价格点对应的单据里删除.
      */
-    public function pushDepthLink(Order $order)
+    public function deleteDepthNode(Order $order)
     {
     }
 }
