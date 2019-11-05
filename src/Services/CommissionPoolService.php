@@ -24,6 +24,9 @@ class CommissionPoolService extends AbstractCommissionPool
         $this->pushDepthHash($order);
 
         $ms_service->deleteHashOrder($order);
+
+        $depth_link = new DepthLinkService();
+        $depth_link->pushDepthNode($order);
     }
 
     /**

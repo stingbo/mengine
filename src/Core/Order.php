@@ -42,14 +42,24 @@ class Order
     public $accuracy;
 
     /**
-     * 前一个.
+     * 节点.
      */
-    public $prev;
+    public $node;
 
     /**
-     * 后一个.
+     * 节点前一个.
      */
-    public $next;
+    public $prev_node;
+
+    /**
+     * 节点后一个.
+     */
+    public $next_node;
+
+    /**
+     * 节点链.
+     */
+    public $node_link;
 
     /**
      * hash对比池标识.
@@ -80,6 +90,8 @@ class Order
         $this->setOrderHashKey();
         $this->setListZsetKey();
         $this->setDepthHashKey();
+        $this->setNode();
+        $this->setNodeLink();
     }
 
     /**
@@ -206,6 +218,26 @@ class Order
     {
         $this->order_depth_hash_key = $this->symbol.':depth';
         $this->order_depth_hash_field = $this->symbol.':depth:'.$this->price;
+
+        return $this;
+    }
+
+    /**
+     * hash模拟Link.
+     */
+    public function setNode()
+    {
+        $this->node = $this->symbol.':node:'.$this->oid;
+
+        return $this;
+    }
+
+    /**
+     * hash模拟Link.
+     */
+    public function setNodeLink()
+    {
+        $this->node_link = $this->symbol.':link:'.$this->price;
 
         return $this;
     }
