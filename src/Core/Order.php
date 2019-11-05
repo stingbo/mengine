@@ -6,8 +6,14 @@ use InvalidArgumentException;
 
 class Order
 {
+    /**
+     * 唯一标识，可以是用户id.
+     */
     public $uuid;
 
+    /**
+     * 单据id.
+     */
     public $oid;
 
     /**
@@ -25,12 +31,25 @@ class Order
      */
     public $volume;
 
+    /**
+     * 价格.
+     */
     public $price;
 
     /**
      * 精度.
      */
     public $accuracy;
+
+    /**
+     * 前一个.
+     */
+    public $prev;
+
+    /**
+     * 后一个.
+     */
+    public $next;
 
     /**
      * hash对比池标识.
