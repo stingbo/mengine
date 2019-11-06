@@ -9,19 +9,30 @@ use Illuminate\Support\Facades\Redis;
 class DepthLinkService
 {
     /**
+     * 第一个价位单初始化节点.
+     */
+    public function initNode(Order $order)
+    {
+        $curr = json_encode($order);
+        Redis::hset($order->node_link, 'first', $curr);
+        Redis::hset($order->node_link, 'last', $curr);
+        Redis::hset($order->node_link, $order->node, $curr);
+    }
+
+    /**
      * 放入价格点对应的单据.
      */
-    public function pushDepthNode(Order $curr)
+    public function pushDepthNode(Order $order)
     {
-        $curr->prev_node = null;
-        $curr->next_node = null;
+        $order->prev_node = null;
+        $order->next_node = null;
 
-        $first = Redis::hget($curr->node_link, 'first');
-        if (!$first) {
-            Redis::hset($curr->node_link, 'first', json_encode($curr));
+        $first = Redis::hget($order->node_link, 'first');
+        $last = Redis::hget($order->node_link, 'last');
+        if (!$first || $last) {
+            $this->initNode($order);
         }
 
-        $last = Redis::hget($curr->node_link, 'last');
         if (!$last) {
             $last = json_encode($curr);
             Redis::hset($curr->node_link, 'last', $last);
