@@ -46,6 +46,9 @@ class Order
      */
     public $node;
 
+    public $is_first = false;
+    public $is_last = false;
+
     /**
      * 节点前一个.
      */

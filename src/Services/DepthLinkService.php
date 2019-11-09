@@ -3,8 +3,8 @@
 namespace StingBo\Mengine\Services;
 
 use StingBo\Mengine\Core\Order;
-use StingBo\Mengine\Core\AbstractCommissionPool;
 use Illuminate\Support\Facades\Redis;
+use InvalidArgumentException;
 
 class DepthLinkService
 {
@@ -13,10 +13,12 @@ class DepthLinkService
      */
     public function initNode(Order $order)
     {
-        $curr = json_encode($order);
-        Redis::hset($order->node_link, 'first', $curr);
-        Redis::hset($order->node_link, 'last', $curr);
-        Redis::hset($order->node_link, $order->node, $curr);
+        $order->is_first = true;
+        $order->is_last = true;
+
+        Redis::hset($order->node_link, 'first', $order->node);
+        Redis::hset($order->node_link, 'last', $order->node);
+        Redis::hset($order->node_link, $order->node, json_encode($order));
     }
 
     /**
@@ -24,28 +26,34 @@ class DepthLinkService
      */
     public function pushDepthNode(Order $order)
     {
-        $order->prev_node = null;
-        $order->next_node = null;
-
-        $first = Redis::hget($order->node_link, 'first');
-        $last = Redis::hget($order->node_link, 'last');
-        if (!$first || $last) {
+        // 不存在则初始化
+        $first_pointer = Redis::hget($order->node_link, 'first');
+        if (!$first_pointer) {
             $this->initNode($order);
-        }
 
-        if (!$last) {
-            $last = json_encode($curr);
-            Redis::hset($curr->node_link, 'last', $last);
-            Redis::hset($curr->node_link, $curr->node, $last);
-        } else {
-            $last = json_decode($last);
-            $last->next_node = $curr->node;
-            $curr->prev_node = $last->node;
-            $order = json_encode($curr);
-            Redis::hset($curr->node_link, $last->node, json_encode($last));
-            Redis::hset($curr->node_link, $curr->node, $order);
-            Redis::hset($curr->node_link, 'last', $order);
+            return true;
         }
+        $last_pointer = Redis::hget($order->node_link, 'last');
+        if (!$last_pointer) {
+            $this->initNode($order);
+
+            return true;
+        }
+        $last = Redis::hget($order->node_link, $last_pointer);
+        if (!$last) {
+            throw new InvalidArgumentException(__METHOD__.' expects last node is not empty.');
+        }
+        $last = json_decode($last);
+        $last->is_last = false;
+        $last->next_node = $order->node;
+        $order->prev_node = $last->node;
+        Redis::hset($last->node_link, $last->node, json_encode($last));
+
+        // 设置指针
+        Redis::hset($order->node_link, 'last', $order->node);
+
+        $order->is_last = true;
+        Redis::hset($order->node_link, $order->node, json_encode($order));
     }
 
     /**
