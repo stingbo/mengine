@@ -31,16 +31,6 @@ class MengineService extends AbstractMengine
     }
 
     /**
-     * 从标识池删除.
-     */
-    public function deleteHashOrder(Order $order)
-    {
-        if (Redis::hexists($order->order_hash_key, $order->order_hash_field)) {
-            Redis::hdel($order->order_hash_key, $order->order_hash_field);
-        }
-    }
-
-    /**
      * 从hash标识池判断委托是否已经删除.
      */
     public function isHashDeleted(Order $order)
@@ -65,20 +55,30 @@ class MengineService extends AbstractMengine
     }
 
     /**
+     * 从标识池删除.
+     */
+    public function deleteHashOrder(Order $order)
+    {
+        if (Redis::hexists($order->order_hash_key, $order->order_hash_field)) {
+            Redis::hdel($order->order_hash_key, $order->order_hash_field);
+        }
+    }
+
+    /**
      * 获取深度列表.
      */
     public function getDepth($symbol, $transaction)
     {
-        $list = [];
+        $depths = [];
         $prices = Redis::zrange($symbol.':'.$transaction, 0, -1);
-        foreach ($prices as $price) {
+        foreach ($prices as $key => $price) {
             $volume = Redis::hget($symbol.':depth', $symbol.':depth:'.$price);
-            $list[] = [
+            $depths[$key] = [
                 'price' => $price,
                 'volume' => $volume,
             ];
         }
 
-        return $list;
+        return $depths;
     }
 }

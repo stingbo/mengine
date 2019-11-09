@@ -25,6 +25,7 @@ class CommissionPoolService extends AbstractCommissionPool
 
         $ms_service->deleteHashOrder($order);
 
+        // 放入节点
         $depth_link = new DepthLinkService();
         $depth_link->pushDepthNode($order);
     }
@@ -34,9 +35,20 @@ class CommissionPoolService extends AbstractCommissionPool
      */
     public function deletePoolOrder(Order $order)
     {
-        $this->deleteZset($order);
-
+        $node = Redis::hget($order->node_link, $order->node);
+        if (!$node) {
+            return false;
+        }
         $this->deleteDepthHash($order);
+
+        $volume = Redis::hget($order->order_depth_hash_key, $order->order_depth_hash_field);
+        if ($volume <= 0) {
+            $this->deleteZset($order);
+        }
+
+        // 从节点删除
+        $depth_link = new DepthLinkService();
+        $depth_link->deleteDepthNode($order);
     }
 
     /**
@@ -68,5 +80,6 @@ class CommissionPoolService extends AbstractCommissionPool
      */
     public function deleteDepthHash(Order $order)
     {
+        Redis::hincrby($order->order_depth_hash_key, $order->order_depth_hash_field, bcmul(-1, $order->volume));
     }
 }
