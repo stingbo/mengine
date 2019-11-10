@@ -81,4 +81,26 @@ class MengineService extends AbstractMengine
 
         return $depths;
     }
+
+    /**
+     * 获取反向深度列表.
+     */
+    public function getRevDepth($symbol, $transaction, $price)
+    {
+        $depths = [];
+        if ('buy' == $transaction) {
+            $prices = Redis::zrangebyscore($symbol.':sale', 0, $price);
+        } elseif ('sale' == $transaction) {
+            $prices = Redis::zrevrangebyscore($symbol.':buy', $price);
+        }
+        foreach ($prices as $key => $price) {
+            $volume = Redis::hget($symbol.':depth', $symbol.':depth:'.$price);
+            $depths[$key] = [
+                'price' => $price,
+                'volume' => $volume,
+            ];
+        }
+
+        return $depths;
+    }
 }
