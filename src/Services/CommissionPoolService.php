@@ -14,10 +14,11 @@ class CommissionPoolService extends AbstractCommissionPool
     public function pushPool(Order $order)
     {
         $ms_service = new MengineService($order);
-
         if ($ms_service->isHashDeleted($order)) {
             return false;
         }
+
+        $ms_service->deleteHashOrder($order);
         $list = $ms_service->getMutexDepth($order->symbol, $order->transaction, $order->price);
         if ($list) {
             // 撮合
@@ -27,13 +28,11 @@ class CommissionPoolService extends AbstractCommissionPool
             }
         }
 
+        // 深度列表与数量更新
         $this->pushZset($order);
-
         $this->pushDepthHash($order);
 
-        $ms_service->deleteHashOrder($order);
-
-        // 放入节点
+        // 节点更新
         $depth_link = new DepthLinkService();
         $depth_link->pushDepthNode($order);
     }

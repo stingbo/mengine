@@ -94,7 +94,7 @@ class MengineService extends AbstractMengine
     }
 
     /**
-     * 获取深度列表.
+     * 获取反向深度列表.
      */
     public function getMutexDepth($symbol, $transaction, $price)
     {
