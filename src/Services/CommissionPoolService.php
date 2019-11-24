@@ -18,6 +18,14 @@ class CommissionPoolService extends AbstractCommissionPool
         if ($ms_service->isHashDeleted($order)) {
             return false;
         }
+        $list = $ms_service->getMutexDepth($order->symbol, $order->transaction, $order->price);
+        if ($list) {
+            // 撮合
+            $order = $this->matchUp($order, $list);
+            if (!$order) {
+                return false;
+            }
+        }
 
         $this->pushZset($order);
 
@@ -81,5 +89,24 @@ class CommissionPoolService extends AbstractCommissionPool
     public function deleteDepthHash(Order $order)
     {
         Redis::hincrby($order->order_depth_hash_key, $order->order_depth_hash_field, bcmul(-1, $order->volume));
+    }
+
+    /**
+     * 撮合.
+     *
+     * @param object $order 下单
+     * @param array  $list  价格匹配部分
+     *
+     * @return mix
+     */
+    public function matchUp(Order $order, $list)
+    {
+        // 1. 撮合#TODO
+
+        // 2. 删除成交的单据/或部分单据
+        //$this->deletePoolOrder();
+
+        // 3. 返回order未撮合部分(如果有)
+        return false;
     }
 }

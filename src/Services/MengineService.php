@@ -70,13 +70,55 @@ class MengineService extends AbstractMengine
     public function getDepth($symbol, $transaction)
     {
         $depths = [];
-        $prices = Redis::zrange($symbol.':'.$transaction, 0, -1);
-        foreach ($prices as $key => $price) {
-            $volume = Redis::hget($symbol.':depth', $symbol.':depth:'.$price);
-            $depths[$key] = [
-                'price' => $price,
-                'volume' => $volume,
-            ];
+        if (config('mengine.mengine.transaction')[0] == $transaction) {
+            $prices = Redis::zrevrange($symbol.':'.$transaction, 0, -1);
+            foreach ($prices as $key => $price) {
+                $volume = Redis::hget($symbol.':depth', $symbol.':depth:'.$price);
+                $depths[$key] = [
+                    'price' => $price,
+                    'volume' => $volume,
+                ];
+            }
+        } elseif (config('mengine.mengine.transaction')[1] == $transaction) {
+            $prices = Redis::zrange($symbol.':'.$transaction, 0, -1);
+            foreach ($prices as $key => $price) {
+                $volume = Redis::hget($symbol.':depth', $symbol.':depth:'.$price);
+                $depths[$key] = [
+                    'price' => $price,
+                    'volume' => $volume,
+                ];
+            }
+        }
+
+        return $depths;
+    }
+
+    /**
+     * 获取深度列表.
+     */
+    public function getMutexDepth($symbol, $transaction, $price)
+    {
+        $depths = [];
+        if (config('mengine.mengine.transaction')[0] == $transaction) {
+            $transaction = config('mengine.mengine.transaction')[1];
+            $prices = Redis::zRangeByScore($symbol.':'.$transaction, '-inf', $price);
+            foreach ($prices as $key => $price) {
+                $volume = Redis::hget($symbol.':depth', $symbol.':depth:'.$price);
+                $depths[$key] = [
+                    'price' => $price,
+                    'volume' => $volume,
+                ];
+            }
+        } elseif (config('mengine.mengine.transaction')[1] == $transaction) {
+            $transaction = config('mengine.mengine.transaction')[0];
+            $prices = Redis::zRevRangeByScore($symbol.':'.$transaction, '+inf', $price);
+            foreach ($prices as $key => $price) {
+                $volume = Redis::hget($symbol.':depth', $symbol.':depth:'.$price);
+                $depths[$key] = [
+                    'price' => $price,
+                    'volume' => $volume,
+                ];
+            }
         }
 
         return $depths;
