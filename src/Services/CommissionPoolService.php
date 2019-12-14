@@ -4,7 +4,9 @@ namespace StingBo\Mengine\Services;
 
 use StingBo\Mengine\Core\Order;
 use StingBo\Mengine\Core\AbstractCommissionPool;
+use StingBo\Mengine\Events\MatchEvent;
 use Illuminate\Support\Facades\Redis;
+use StingBo\Mengine\Exceptions\MatchException;
 
 class CommissionPoolService extends AbstractCommissionPool
 {
@@ -27,6 +29,7 @@ class CommissionPoolService extends AbstractCommissionPool
                 return false;
             }
         }
+        //die;
 
         // 深度列表与数量更新
         $this->pushZset($order);
@@ -100,12 +103,34 @@ class CommissionPoolService extends AbstractCommissionPool
      */
     public function matchUp(Order $order, $list)
     {
+        print_r($order);
+        print_r($list);
         // 1. 撮合#TODO
+        foreach ($list as $match_info) {
+            $order->volume = bcsub($order->volume, $match_info['volume']);
+
+            $node_link = $order->symbol.':link:'.$match_info['price'];
+            $this->getMatchOrder($node_link);
+            if ($order->volume <= 0) {
+                //event(new PushQueueEvent($order));
+            }
+        }
+        die;
 
         // 2. 删除成交的单据/或部分单据
         //$this->deletePoolOrder();
 
         // 3. 返回order未撮合部分(如果有)
         return false;
+    }
+
+    public function getMatchOrder($node_link)
+    {
+        $match_order = Redis::hget($node_link, 'first');
+        if (!$match_order) {
+            throw new MatchException(__METHOD__.' matching order does not exist.');
+        }
+
+        print_r($match_order);
     }
 }

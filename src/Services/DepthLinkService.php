@@ -26,24 +26,19 @@ class DepthLinkService
      */
     public function pushDepthNode(Order $order)
     {
+        $link_service = new LinkService($order->node_link);
+
         // 不存在则初始化
-        $first_pointer = Redis::hget($order->node_link, 'first');
-        if (!$first_pointer) {
+        $first = $link_service->getFirst();
+        if (!$first) {
             $this->initNode($order);
 
             return true;
         }
-        $last_pointer = Redis::hget($order->node_link, 'last');
-        if (!$last_pointer) {
-            $this->initNode($order);
-
-            return true;
-        }
-        $last = Redis::hget($order->node_link, $last_pointer);
+        $last = $link_service->getLast();
         if (!$last) {
             throw new InvalidArgumentException(__METHOD__.' expects last node is not empty.');
         }
-        $last = json_decode($last);
         $last->is_last = false;
         $last->next_node = $order->node;
         $order->prev_node = $last->node;
