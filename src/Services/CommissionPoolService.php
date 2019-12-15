@@ -56,7 +56,7 @@ class CommissionPoolService extends AbstractCommissionPool
             $this->deleteZset($order);
         }
 
-        // 从节点删除
+        // 从节点链上删除
         $depth_link = new DepthLinkService();
         $depth_link->deleteDepthNode($order);
     }
@@ -90,6 +90,7 @@ class CommissionPoolService extends AbstractCommissionPool
      */
     public function deleteDepthHash(Order $order)
     {
+        // 需要判断部分成交的情况 TODO
         Redis::hincrby($order->order_depth_hash_key, $order->order_depth_hash_field, bcmul(-1, $order->volume));
     }
 
@@ -103,34 +104,51 @@ class CommissionPoolService extends AbstractCommissionPool
      */
     public function matchUp(Order $order, $list)
     {
-        print_r($order);
-        print_r($list);
-        // 1. 撮合#TODO
+        //print_r($order);
+        //print_r($list);
+        // 撮合
         foreach ($list as $match_info) {
-            $order->volume = bcsub($order->volume, $match_info['volume']);
+            $link_name = $order->symbol.':link:'.$match_info['price'];
+            $link_service = new LinkService($link_name);
 
-            $node_link = $order->symbol.':link:'.$match_info['price'];
-            $this->getMatchOrder($node_link);
+            $order = $this->matchOrder($order, $link_service);
+
             if ($order->volume <= 0) {
-                //event(new PushQueueEvent($order));
+                break;
             }
         }
-        die;
 
-        // 2. 删除成交的单据/或部分单据
-        //$this->deletePoolOrder();
+        if ($order->volume > 0) {
+            return $order;
+        }
 
-        // 3. 返回order未撮合部分(如果有)
         return false;
     }
 
-    public function getMatchOrder($node_link)
+    public function matchOrder($order, $link_service)
     {
-        $match_order = Redis::hget($node_link, 'first');
-        if (!$match_order) {
-            throw new MatchException(__METHOD__.' matching order does not exist.');
+        $match_order = $link_service->getFirst();
+        if ($match_order) {
+            if ($order->volume > $match_order->volume) {
+                $match_volume = $match_order->volume;
+                $order->volume = bcsub($order->volume, $match_order->volume);
+                $link_service->deleteNode($match_order);
+                $this->matchOrder($order, $link_service);
+            } elseif ($order->volume == $match_order->volume) {
+                $mtch_volume = $match_order->volume;
+                $order->volume = bcsub($order->volume, $match_order->volume);
+                $link_service->deleteNode($match_order);
+
+            } else {
+                $match_order->volume = bcsub($match_order->volume, $order->volume);
+                $order->volume = 0;
+                $link_service->setNode($match_order);
+            }
+            event(new MatchEvent($order, $match_order, $match_volume));
+
+            return $order;
         }
 
-        print_r($match_order);
+        return $order;
     }
 }
