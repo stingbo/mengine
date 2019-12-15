@@ -79,7 +79,7 @@ class LinkService
         return $this->current = json_decode($node);
     }
 
-    public function setNext($order)
+    public function init($order)
     {
         $this->current->is_last = false;
         $this->current->next_node = $order->node;
@@ -87,8 +87,27 @@ class LinkService
         Redis::hset($last->node_link, $last->node, json_encode($last));
     }
 
+    public function setLast($order)
+    {
+        $this->getLast();
+        $this->current->is_last = false;
+        $this->current->next_node = $order->node;
+        $this->setNode($this->current->node, $this->current);
+
+        $order->prev_node = $this->current->node;
+        $this->setNode('last', $order->node);
+
+        $order->is_last = true;
+        $this->setNode($order->node, $order);
+    }
+
     public function getNode($field)
     {
         return Redis::hget($this->link, $field);
+    }
+
+    public function setNode($field, $order)
+    {
+        return Redis::hset($this->link, $field, json_encode($order));
     }
 }

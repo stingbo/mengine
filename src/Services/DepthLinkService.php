@@ -39,16 +39,8 @@ class DepthLinkService
         if (!$last) {
             throw new InvalidArgumentException(__METHOD__.' expects last node is not empty.');
         }
-        $last->is_last = false;
-        $last->next_node = $order->node;
-        $order->prev_node = $last->node;
-        Redis::hset($last->node_link, $last->node, json_encode($last));
 
-        // 设置指针
-        Redis::hset($order->node_link, 'last', $order->node);
-
-        $order->is_last = true;
-        Redis::hset($order->node_link, $order->node, json_encode($order));
+        $link_service->setLast($order);
     }
 
     /**
