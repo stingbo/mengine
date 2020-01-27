@@ -157,11 +157,7 @@ class LinkService
         $node = Redis::hget($this->link, $field);
 
         if ($node) {
-            if ($node == serialize(false)) {
-                return $node;
-            } else {
-                return unserialize($node);
-            }
+            return unserialize($node);
         }
 
         return null;

@@ -27,7 +27,6 @@ class CommissionPoolService extends AbstractCommissionPool
                 return false;
             }
         }
-        //die;
 
         // 深度列表、数量更新、节点更新
         $depth_link = new DepthLinkService();
@@ -73,8 +72,6 @@ class CommissionPoolService extends AbstractCommissionPool
      */
     public function matchUp(Order $order, $list)
     {
-        //print_r($order);
-        //print_r($list);
         // 撮合
         foreach ($list as $match_info) {
             $link_name = $order->symbol.':link:'.$match_info['price'];
@@ -134,7 +131,6 @@ class CommissionPoolService extends AbstractCommissionPool
      */
     public function updatePoolOrder($order)
     {
-        print_r($order);
         $depth_link = new DepthLinkService();
 
         // 更新委托量

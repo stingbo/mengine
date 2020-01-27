@@ -77,7 +77,6 @@ class DepthLinkService
     {
         // 判断对应的委托量，如果没有了则从深度列表里删除
         $volume = Redis::hget($order->order_depth_hash_key, $order->order_depth_hash_field);
-        var_dump($volume);
         if ($volume <= 0) {
             Redis::zrem($order->order_list_zset_key, $order->price);
         }
