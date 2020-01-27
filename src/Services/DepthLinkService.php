@@ -2,9 +2,9 @@
 
 namespace StingBo\Mengine\Services;
 
-use StingBo\Mengine\Core\Order;
 use Illuminate\Support\Facades\Redis;
 use InvalidArgumentException;
+use StingBo\Mengine\Core\Order;
 
 class DepthLinkService
 {
@@ -44,5 +44,42 @@ class DepthLinkService
         $link_service->deleteNode($order);
 
         return true;
+    }
+
+    /**
+     * 放入委托量hash.
+     */
+    public function pushDepthHash(Order $order)
+    {
+        Redis::hincrby($order->order_depth_hash_key, $order->order_depth_hash_field, $order->volume);
+    }
+
+    /**
+     * 从委托量hash里删除.
+     */
+    public function deleteDepthHash(Order $order)
+    {
+        Redis::hincrby($order->order_depth_hash_key, $order->order_depth_hash_field, bcmul(-1, $order->volume));
+    }
+
+    /**
+     * 放入深度池.
+     */
+    public function pushZset(Order $order)
+    {
+        Redis::zadd($order->order_list_zset_key, $order->price, $order->price);
+    }
+
+    /**
+     * 从深度池删除.
+     */
+    public function deleteZset(Order $order)
+    {
+        // 判断对应的委托量，如果没有了则从深度列表里删除
+        $volume = Redis::hget($order->order_depth_hash_key, $order->order_depth_hash_field);
+        var_dump($volume);
+        if ($volume <= 0) {
+            Redis::zrem($order->order_list_zset_key, $order->price);
+        }
     }
 }

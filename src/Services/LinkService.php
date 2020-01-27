@@ -2,7 +2,6 @@
 
 namespace StingBo\Mengine\Services;
 
-use StingBo\Mengine\Core\Order;
 use Illuminate\Support\Facades\Redis;
 
 /**
@@ -32,6 +31,9 @@ class LinkService
         $this->setNode($order->node, $order);
     }
 
+    /**
+     * 获取价位链上第一个单据.
+     */
     public function getFirst()
     {
         $first = $this->getNode('first');
@@ -44,7 +46,7 @@ class LinkService
             return false;
         }
 
-        return $this->current = json_decode($node);
+        return $this->current = $node;
     }
 
     /**
@@ -52,9 +54,13 @@ class LinkService
      */
     public function setFirstPointer($node_name)
     {
-        return Redis::hset($this->link, 'first', $node_name);
+        return $this->setNode('first', $node_name);
+        //return Redis::hset($this->link, 'first', $node_name);
     }
 
+    /**
+     * 获取价位链上最后一个单据.
+     */
     public function getLast()
     {
         $last = $this->getNode('last');
@@ -67,7 +73,7 @@ class LinkService
             return false;
         }
 
-        return $this->current = json_decode($node);
+        return $this->current = $node;
     }
 
     /**
@@ -75,7 +81,8 @@ class LinkService
      */
     public function setLastPointer($node_name)
     {
-        return Redis::hset($this->link, 'last', $node_name);
+        return $this->setNode('last', $node_name);
+        //return Redis::hset($this->link, 'last', $node_name);
     }
 
     public function getCurrent($field = '')
@@ -86,12 +93,15 @@ class LinkService
                 return false;
             }
 
-            return $this->current = json_decode($node);
+            return $this->current = $node;
         }
 
         return $this->current ?? false;
     }
 
+    /**
+     * 获取当前单据前一个单据.
+     */
     public function getPrev()
     {
         $field = $this->current->prev_node;
@@ -104,9 +114,12 @@ class LinkService
             return false;
         }
 
-        return $this->current = json_decode($node);
+        return $this->current = $node;
     }
 
+    /**
+     * 获取当前单据后一个单据.
+     */
     public function getNext()
     {
         $field = $this->current->next_node;
@@ -119,7 +132,7 @@ class LinkService
             return false;
         }
 
-        return $this->current = json_decode($node);
+        return $this->current = $node;
     }
 
     public function setLast($order)
@@ -136,16 +149,35 @@ class LinkService
         $this->setNode($order->node, $order);
     }
 
+    /**
+     * 根据field获取某个节点.
+     */
     public function getNode($field)
     {
-        return Redis::hget($this->link, $field);
+        $node = Redis::hget($this->link, $field);
+
+        if ($node) {
+            if ($node == serialize(false)) {
+                return $node;
+            } else {
+                return unserialize($node);
+            }
+        }
+
+        return null;
     }
 
+    /**
+     * 设置/更新某个field.
+     */
     public function setNode($field, $order)
     {
-        return Redis::hset($this->link, $field, json_encode($order));
+        return Redis::hset($this->link, $field, serialize($order));
     }
 
+    /**
+     * 删除某个field.
+     */
     public function deleteNode($order)
     {
         if ($order->is_first && $order->is_last) { // 只有一个节点则全删除
@@ -180,8 +212,6 @@ class LinkService
             if (!$prev || !$next) {
                 throw new InvalidArgumentException(__METHOD__.' expects relation node is not empty.');
             }
-            $prev = json_decode($prev);
-            $next = json_decode($next);
             $prev->next_node = $next->node;
             $next->prev_node = $prev->node;
 

@@ -6,12 +6,8 @@ use StingBo\Mengine\Core\Order;
 
 class OrderService
 {
-    public function getOrder()
+    public function setOrder($uuid, $oid, $symbol, $transaction, $volume, $price)
     {
-        return $this->order;
-    }
-
-    public function push(Order $order)
-    {
+        return new Order($uuid, $oid, $symbol, $transaction, $volume, $price);
     }
 }

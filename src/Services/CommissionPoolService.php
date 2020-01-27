@@ -2,11 +2,9 @@
 
 namespace StingBo\Mengine\Services;
 
-use StingBo\Mengine\Core\Order;
 use StingBo\Mengine\Core\AbstractCommissionPool;
+use StingBo\Mengine\Core\Order;
 use StingBo\Mengine\Events\MatchEvent;
-use Illuminate\Support\Facades\Redis;
-use StingBo\Mengine\Exceptions\MatchException;
 
 class CommissionPoolService extends AbstractCommissionPool
 {
@@ -31,67 +29,38 @@ class CommissionPoolService extends AbstractCommissionPool
         }
         //die;
 
-        // 深度列表与数量更新
-        $this->pushZset($order);
-        $this->pushDepthHash($order);
-
-        // 节点更新
+        // 深度列表、数量更新、节点更新
         $depth_link = new DepthLinkService();
+        $depth_link->pushZset($order);
+
+        $depth_link->pushDepthHash($order);
+
         $depth_link->pushDepthNode($order);
     }
 
     /**
-     * 从委托池删除.
+     * 撤单从委托池删除.
      */
     public function deletePoolOrder(Order $order)
     {
-        $node = Redis::hget($order->node_link, $order->node);
+        $link_service = new LinkService($order->node_link);
+        $node = $link_service->getNode($order->node);
         if (!$node) {
             return false;
         }
-        $this->deleteDepthHash($order);
 
-        $volume = Redis::hget($order->order_depth_hash_key, $order->order_depth_hash_field);
-        if ($volume <= 0) {
-            $this->deleteZset($order);
-        }
+        // 更新委托量
+        $depth_link = new DepthLinkService();
+
+        // order里的volume替换为缓存里节点上的数量,防止order里的数量与当初push的不一致或者部分成交
+        $order->volume = $node->volume;
+        $depth_link->deleteDepthHash($order);
+
+        // 从深度列表里删除
+        $depth_link->deleteZset($order);
 
         // 从节点链上删除
-        $depth_link = new DepthLinkService();
         $depth_link->deleteDepthNode($order);
-    }
-
-    /**
-     * 放入深度池.
-     */
-    public function pushZset(Order $order)
-    {
-        Redis::zadd($order->order_list_zset_key, $order->price, $order->price);
-    }
-
-    /**
-     * 从深度池删除.
-     */
-    public function deleteZset(Order $order)
-    {
-        Redis::zrem($order->order_list_zset_key, $order->price);
-    }
-
-    /**
-     * 放入委托量hash.
-     */
-    public function pushDepthHash(Order $order)
-    {
-        Redis::hincrby($order->order_depth_hash_key, $order->order_depth_hash_field, $order->volume);
-    }
-
-    /**
-     * 从委托量hash里删除.
-     */
-    public function deleteDepthHash(Order $order)
-    {
-        // 需要判断部分成交的情况 TODO
-        Redis::hincrby($order->order_depth_hash_key, $order->order_depth_hash_field, bcmul(-1, $order->volume, config('mengine.mengine.accuracy')));
     }
 
     /**
@@ -112,7 +81,6 @@ class CommissionPoolService extends AbstractCommissionPool
             $link_service = new LinkService($link_name);
 
             $order = $this->matchOrder($order, $link_service);
-
             if ($order->volume <= 0) {
                 break;
             }
@@ -129,23 +97,27 @@ class CommissionPoolService extends AbstractCommissionPool
     {
         $match_order = $link_service->getFirst();
         if ($match_order) {
-            $compare_result = bccomp($order->volume, $match_order->volume, config('mengine.mengine.accuracy'));
+            $compare_result = bccomp($order->volume, $match_order->volume);
             switch ($compare_result) {
                 case 1:
                     $match_volume = $match_order->volume;
-                    $order->volume = bcsub($order->volume, $match_order->volume, config('mengine.mengine.accuracy'));
+                    $order->volume = bcsub($order->volume, $match_order->volume);
                     $link_service->deleteNode($match_order);
                     $this->matchOrder($order, $link_service);
+                    $this->updatePoolOrder($match_order);
                     break;
                 case 0:
-                    $mtch_volume = $match_order->volume;
-                    $order->volume = bcsub($order->volume, $match_order->volume, config('mengine.mengine.accuracy'));
+                    $match_volume = $match_order->volume;
+                    $order->volume = bcsub($order->volume, $match_order->volume);
                     $link_service->deleteNode($match_order);
+                    $this->updatePoolOrder($match_order);
                     break;
                 case -1:
-                    $match_order->volume = bcsub($match_order->volume, $order->volume, config('mengine.mengine.accuracy'));
+                    $match_volume = $order->volume;
+                    $match_order->volume = bcsub($match_order->volume, $order->volume);
                     $order->volume = 0;
-                    $link_service->setNode($match_order);
+                    $link_service->setNode($match_order->node, $match_order);
+                    $this->updatePoolOrder($order);
                     break;
             }
 
@@ -155,5 +127,20 @@ class CommissionPoolService extends AbstractCommissionPool
         }
 
         return $order;
+    }
+
+    /**
+     * 撮合成交更新委托池.
+     */
+    public function updatePoolOrder($order)
+    {
+        print_r($order);
+        $depth_link = new DepthLinkService();
+
+        // 更新委托量
+        $depth_link->deleteDepthHash($order);
+
+        // 从深度列表里删除
+        $depth_link->deleteZset($order);
     }
 }

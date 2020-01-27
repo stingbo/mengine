@@ -181,6 +181,9 @@ class Order
         return $this;
     }
 
+    /**
+     * set accuracy.
+     */
     public function setAccuracy()
     {
         $accuracy = config('mengine.mengine.accuracy');

@@ -2,11 +2,11 @@
 
 namespace StingBo\Mengine\Services;
 
-use StingBo\Mengine\Core\Order;
-use StingBo\Mengine\Core\AbstractMengine;
-use StingBo\Mengine\Events\PushQueueEvent;
-use StingBo\Mengine\Events\DeleteOrderEvent;
 use Illuminate\Support\Facades\Redis;
+use StingBo\Mengine\Core\AbstractMengine;
+use StingBo\Mengine\Core\Order;
+use StingBo\Mengine\Events\DeleteOrderEvent;
+use StingBo\Mengine\Events\PushQueueEvent;
 
 class MengineService extends AbstractMengine
 {

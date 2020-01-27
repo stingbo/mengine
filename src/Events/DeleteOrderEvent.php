@@ -10,7 +10,9 @@ use StingBo\Mengine\Core\Order;
 
 class DeleteOrderEvent
 {
-    use Dispatchable, InteractsWithSockets, SerializesModels;
+    use Dispatchable;
+    use InteractsWithSockets;
+    use SerializesModels;
 
     public $order;
 
