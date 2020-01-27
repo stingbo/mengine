@@ -226,7 +226,7 @@ class Order
     }
 
     /**
-     * hash模拟Link.
+     * hash模拟node.
      */
     public function setNode()
     {

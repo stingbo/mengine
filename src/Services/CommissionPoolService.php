@@ -91,7 +91,7 @@ class CommissionPoolService extends AbstractCommissionPool
     public function deleteDepthHash(Order $order)
     {
         // 需要判断部分成交的情况 TODO
-        Redis::hincrby($order->order_depth_hash_key, $order->order_depth_hash_field, bcmul(-1, $order->volume));
+        Redis::hincrby($order->order_depth_hash_key, $order->order_depth_hash_field, bcmul(-1, $order->volume, config('mengine.mengine.accuracy')));
     }
 
     /**
@@ -129,21 +129,26 @@ class CommissionPoolService extends AbstractCommissionPool
     {
         $match_order = $link_service->getFirst();
         if ($match_order) {
-            if ($order->volume > $match_order->volume) {
-                $match_volume = $match_order->volume;
-                $order->volume = bcsub($order->volume, $match_order->volume);
-                $link_service->deleteNode($match_order);
-                $this->matchOrder($order, $link_service);
-            } elseif ($order->volume == $match_order->volume) {
-                $mtch_volume = $match_order->volume;
-                $order->volume = bcsub($order->volume, $match_order->volume);
-                $link_service->deleteNode($match_order);
-
-            } else {
-                $match_order->volume = bcsub($match_order->volume, $order->volume);
-                $order->volume = 0;
-                $link_service->setNode($match_order);
+            $compare_result = bccomp($order->volume, $match_order->volume, config('mengine.mengine.accuracy'));
+            switch ($compare_result) {
+                case 1:
+                    $match_volume = $match_order->volume;
+                    $order->volume = bcsub($order->volume, $match_order->volume, config('mengine.mengine.accuracy'));
+                    $link_service->deleteNode($match_order);
+                    $this->matchOrder($order, $link_service);
+                    break;
+                case 0:
+                    $mtch_volume = $match_order->volume;
+                    $order->volume = bcsub($order->volume, $match_order->volume, config('mengine.mengine.accuracy'));
+                    $link_service->deleteNode($match_order);
+                    break;
+                case -1:
+                    $match_order->volume = bcsub($match_order->volume, $order->volume, config('mengine.mengine.accuracy'));
+                    $order->volume = 0;
+                    $link_service->setNode($match_order);
+                    break;
             }
+
             event(new MatchEvent($order, $match_order, $match_volume));
 
             return $order;
