@@ -4,6 +4,7 @@ namespace StingBo\Mengine\Services;
 
 use StingBo\Mengine\Core\AbstractCommissionPool;
 use StingBo\Mengine\Core\Order;
+use StingBo\Mengine\Events\DeleteOrderSuccEvent;
 use StingBo\Mengine\Events\MatchEvent;
 
 class CommissionPoolService extends AbstractCommissionPool
@@ -47,6 +48,16 @@ class CommissionPoolService extends AbstractCommissionPool
         if (!$node) {
             return false;
         }
+        if ($node->uuid != $order->uuid) {
+            return false;
+        }
+        if ($node->symbol != $order->symbol) {
+            return false;
+        }
+        if ($node->transaction != $order->transaction) {
+            return false;
+        }
+
 
         // 更新委托量
         $depth_link = new DepthLinkService();
@@ -60,6 +71,9 @@ class CommissionPoolService extends AbstractCommissionPool
 
         // 从节点链上删除
         $depth_link->deleteDepthNode($order);
+
+        // 撤单成功通知
+        event(new DeleteOrderSuccEvent($order));
     }
 
     /**
@@ -114,10 +128,14 @@ class CommissionPoolService extends AbstractCommissionPool
                     $match_order->volume = bcsub($match_order->volume, $order->volume);
                     $order->volume = 0;
                     $link_service->setNode($match_order->node, $match_order);
-                    $this->updatePoolOrder($order);
+
+                    // 委托池更新数量重新设置
+                    $match_order->volume = $match_volume;
+                    $this->updatePoolOrder($match_order);
                     break;
             }
 
+            // 撮合成功通知
             event(new MatchEvent($order, $match_order, $match_volume));
 
             return $order;
