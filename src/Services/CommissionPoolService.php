@@ -114,8 +114,10 @@ class CommissionPoolService extends AbstractCommissionPool
                     $match_volume = $match_order->volume;
                     $order->volume = bcsub($order->volume, $match_order->volume);
                     $link_service->deleteNode($match_order);
-                    $this->matchOrder($order, $link_service);
                     $this->updatePoolOrder($match_order);
+
+                    // 递归撮合
+                    $this->matchOrder($order, $link_service);
                     break;
                 case 0:
                     $match_volume = $match_order->volume;
