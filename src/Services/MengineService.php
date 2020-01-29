@@ -5,8 +5,8 @@ namespace StingBo\Mengine\Services;
 use Illuminate\Support\Facades\Redis;
 use StingBo\Mengine\Core\AbstractMengine;
 use StingBo\Mengine\Core\Order;
-use StingBo\Mengine\Events\DeleteOrderEvent;
-use StingBo\Mengine\Events\PushQueueEvent;
+use StingBo\Mengine\Jobs\DeleteOrderJob;
+use StingBo\Mengine\Jobs\PushQueueJob;
 
 class MengineService extends AbstractMengine
 {
@@ -19,7 +19,7 @@ class MengineService extends AbstractMengine
         $this->pushHash($order);
 
         // 2. 入委托队列
-        event(new PushQueueEvent($order));
+        dispatch((new PushQueueJob($order))->allOnQueue($order->symbol));
     }
 
     /**
@@ -51,7 +51,7 @@ class MengineService extends AbstractMengine
         $this->deleteHashOrder($order);
 
         // 第二步，从委托池里删除
-        event(new DeleteOrderEvent($order));
+        dispatch((new DeleteOrderJob($order))->allOnQueue($order->symbol));
     }
 
     /**

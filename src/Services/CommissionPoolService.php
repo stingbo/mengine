@@ -58,7 +58,6 @@ class CommissionPoolService extends AbstractCommissionPool
             return false;
         }
 
-
         // 更新委托量
         $depth_link = new DepthLinkService();
 
