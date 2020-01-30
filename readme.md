@@ -62,9 +62,10 @@ $ms->pushQueue($order);
 4. 交易成功会触发事件，开发者要在监听器里处理有交易的委托单，比如更新数据库数据，WebSocket通知等
 在EventServiceProvider里为撮合成功的事件注册监听器:
 ```php
-// 撮合成功通知
+// 撮合成功通知，参数分别是：当前订单，被匹配的单据，交易数量
 event(new MatchEvent($order, $match_order, $match_volume));
 
+// 注册监听器
 protected $listen = [
     'StingBo\Mengine\Events\MatchEvent' => [
         'App\Listeners\YourListener', // 你自己的监听器，应该也使用异步来实现
@@ -74,8 +75,10 @@ protected $listen = [
 5. 如果只是部分成交，则剩余部分进入委托池，触发委托池变更事件，K线或者委托池变更通知等，
 注册监听器如下：
 ```php
+// 委托池数据变更事件
 event(new PushQueueEvent($order));
 
+// 注册监听器
 protected $listen = [
     'StingBo\Mengine\Events\PushQueueEvent' => [
         'App\Listeners\YourListener', // 你自己的监听器，应该也使用异步来实现
@@ -95,6 +98,7 @@ $ms->deleteOrder($order);
 // 撤单成功通知
 event(new DeleteOrderSuccEvent($order));
 
+// 注册监听器
 protected $listen = [
     'StingBo\Mengine\Events\DeleteOrderSuccEvent' => [
         'App\Listeners\YourListener', // 你自己的监听器，应该也使用异步来实现
