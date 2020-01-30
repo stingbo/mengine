@@ -115,4 +115,4 @@ $ms->getDepth($symbol, $transaction);
 ```
 
 ### 总结
-[基于redis的撮合引擎设计](https://blog.blianb.com/wp-content/uploads/2020/01/数字货币交易所-基于redis的简单撮单引擎.png)
+![基于redis的撮合引擎设计](https://raw.githubusercontent.com/stingbo/image/master/%E6%95%B0%E5%AD%97%E8%B4%A7%E5%B8%81%E4%BA%A4%E6%98%93%E6%89%80-%E5%9F%BA%E4%BA%8Eredis%E7%9A%84%E7%AE%80%E5%8D%95%E6%92%AE%E5%8D%95%E5%BC%95%E6%93%8E.png)
