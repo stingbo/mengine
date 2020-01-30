@@ -5,6 +5,7 @@ namespace StingBo\Mengine\Services;
 use Illuminate\Support\Facades\Redis;
 use StingBo\Mengine\Core\AbstractMengine;
 use StingBo\Mengine\Core\Order;
+use StingBo\Mengine\Exceptions\DeleteOrderException;
 use StingBo\Mengine\Jobs\DeleteOrderJob;
 use StingBo\Mengine\Jobs\PushQueueJob;
 
@@ -49,6 +50,21 @@ class MengineService extends AbstractMengine
     {
         // 第一步，从标识池删除，避免队列有积压时未消费问题
         $this->deleteHashOrder($order);
+
+        $link_service = new LinkService($order->node_link);
+        $node = $link_service->getNode($order->node);
+        if (!$node) {
+            throw new DeleteOrderException('order not exist', DeleteOrderException::NOT_EXIST);
+        }
+        if ($node->uuid != $order->uuid) {
+            throw new DeleteOrderException('order message not match', DeleteOrderException::NOT_MATCH);
+        }
+        if ($node->symbol != $order->symbol) {
+            throw new DeleteOrderException('order message not match', DeleteOrderException::NOT_MATCH);
+        }
+        if ($node->transaction != $order->transaction) {
+            throw new DeleteOrderException('order message not match', DeleteOrderException::NOT_MATCH);
+        }
 
         // 第二步，从委托池里删除
         dispatch((new DeleteOrderJob($order))->allOnQueue($order->symbol));

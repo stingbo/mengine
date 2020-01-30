@@ -6,6 +6,7 @@ use StingBo\Mengine\Core\AbstractCommissionPool;
 use StingBo\Mengine\Core\Order;
 use StingBo\Mengine\Events\DeleteOrderSuccEvent;
 use StingBo\Mengine\Events\MatchEvent;
+use StingBo\Mengine\Events\PushQueueEvent;
 
 class CommissionPoolService extends AbstractCommissionPool
 {
@@ -36,6 +37,8 @@ class CommissionPoolService extends AbstractCommissionPool
         $depth_link->pushDepthHash($order);
 
         $depth_link->pushDepthNode($order);
+
+        event(new PushQueueEvent($order));
     }
 
     /**
@@ -43,21 +46,6 @@ class CommissionPoolService extends AbstractCommissionPool
      */
     public function deletePoolOrder(Order $order)
     {
-        $link_service = new LinkService($order->node_link);
-        $node = $link_service->getNode($order->node);
-        if (!$node) {
-            return false;
-        }
-        if ($node->uuid != $order->uuid) {
-            return false;
-        }
-        if ($node->symbol != $order->symbol) {
-            return false;
-        }
-        if ($node->transaction != $order->transaction) {
-            return false;
-        }
-
         // 更新委托量
         $depth_link = new DepthLinkService();
 
@@ -113,7 +101,7 @@ class CommissionPoolService extends AbstractCommissionPool
                     $match_volume = $match_order->volume;
                     $order->volume = bcsub($order->volume, $match_order->volume);
                     $link_service->deleteNode($match_order);
-                    $this->updatePoolOrder($match_order);
+                    $this->deletePoolMatchOrder($match_order);
 
                     // 递归撮合
                     $this->matchOrder($order, $link_service);
@@ -122,7 +110,7 @@ class CommissionPoolService extends AbstractCommissionPool
                     $match_volume = $match_order->volume;
                     $order->volume = bcsub($order->volume, $match_order->volume);
                     $link_service->deleteNode($match_order);
-                    $this->updatePoolOrder($match_order);
+                    $this->deletePoolMatchOrder($match_order);
                     break;
                 case -1:
                     $match_volume = $order->volume;
@@ -132,7 +120,7 @@ class CommissionPoolService extends AbstractCommissionPool
 
                     // 委托池更新数量重新设置
                     $match_order->volume = $match_volume;
-                    $this->updatePoolOrder($match_order);
+                    $this->deletePoolMatchOrder($match_order);
                     break;
             }
 
@@ -148,7 +136,7 @@ class CommissionPoolService extends AbstractCommissionPool
     /**
      * 撮合成交更新委托池.
      */
-    public function updatePoolOrder($order)
+    public function deletePoolMatchOrder($order)
     {
         $depth_link = new DepthLinkService();
 
