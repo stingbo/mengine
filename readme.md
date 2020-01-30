@@ -113,3 +113,6 @@ $transaction = 'buy';
 $ms = new MengineService();
 $ms->getDepth($symbol, $transaction);
 ```
+
+### 总结
+[基于redis的撮合引擎设计](https://blog.blianb.com/wp-content/uploads/2020/01/数字货币交易所-基于redis的简单撮单引擎.png)
