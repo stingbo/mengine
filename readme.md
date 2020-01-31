@@ -1,9 +1,9 @@
 # Laravel Package for Matching Engine
 
-## Quick Start Guide
+## 快速开始
 
-- Add dependency: `composer require sting_bo/mengine`
-- Copy configuration: `php artisan vendor:publish`
+- 安装: `composer require sting_bo/mengine`
+- 复制配置文件: `php artisan vendor:publish`
 
 
 ### 依赖
