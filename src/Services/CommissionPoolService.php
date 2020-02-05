@@ -103,6 +103,9 @@ class CommissionPoolService extends AbstractCommissionPool
                     $link_service->deleteNode($match_order);
                     $this->deletePoolMatchOrder($match_order);
 
+                    // 撮合成功通知
+                    event(new MatchEvent($order, $match_order, $match_volume));
+
                     // 递归撮合
                     $this->matchOrder($order, $link_service);
                     break;
@@ -111,6 +114,9 @@ class CommissionPoolService extends AbstractCommissionPool
                     $order->volume = bcsub($order->volume, $match_order->volume);
                     $link_service->deleteNode($match_order);
                     $this->deletePoolMatchOrder($match_order);
+
+                    // 撮合成功通知
+                    event(new MatchEvent($order, $match_order, $match_volume));
                     break;
                 case -1:
                     $match_volume = $order->volume;
@@ -121,11 +127,11 @@ class CommissionPoolService extends AbstractCommissionPool
                     // 委托池更新数量重新设置
                     $match_order->volume = $match_volume;
                     $this->deletePoolMatchOrder($match_order);
+
+                    // 撮合成功通知
+                    event(new MatchEvent($order, $match_order, $match_volume));
                     break;
             }
-
-            // 撮合成功通知
-            event(new MatchEvent($order, $match_order, $match_volume));
 
             return $order;
         }
