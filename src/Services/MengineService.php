@@ -59,7 +59,7 @@ class MengineService extends AbstractMengine
      */
     public function deleteHashOrder(Order $order)
     {
-        if (Redis::hexists($order->order_hash_key, $order->order_hash_field)) {
+        if (!$this->isHashDeleted) {
             Redis::hdel($order->order_hash_key, $order->order_hash_field);
         }
     }

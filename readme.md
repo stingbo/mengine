@@ -12,6 +12,8 @@
 
 2. 使用前需要初始化单据，`交易方向`与`交易精度`可在配置文件灵活设置
 ```php
+use StingBo\Mengine\Core\Order;
+
 $uuid = 3; // 用户唯一标识
 $oid = 4; // 订单唯一标识
 $symbol = 'abc2cny'; // 交易对
@@ -24,6 +26,8 @@ $order = new Order($uuid, $oid, $symbol, $transaction, $volume, $price);
 
 3. 下单，应该是先落到事物型数据库后再调用此方法
 ```php
+use StingBo\Mengine\Services\MengineService;
+
 $ms = new MengineService();
 $ms->pushQueue($order);
 ```
