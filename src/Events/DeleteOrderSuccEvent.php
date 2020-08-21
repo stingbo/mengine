@@ -8,7 +8,7 @@ use Illuminate\Foundation\Events\Dispatchable;
 use Illuminate\Queue\SerializesModels;
 use StingBo\Mengine\Core\Order;
 
-class PushQueueEvent
+class DeleteOrderSuccEvent
 {
     use Dispatchable;
     use InteractsWithSockets;

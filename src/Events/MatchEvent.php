@@ -6,9 +6,8 @@ use Illuminate\Broadcasting\InteractsWithSockets;
 use Illuminate\Broadcasting\PrivateChannel;
 use Illuminate\Foundation\Events\Dispatchable;
 use Illuminate\Queue\SerializesModels;
-use StingBo\Mengine\Core\Order;
 
-class PushQueueEvent
+class MatchEvent
 {
     use Dispatchable;
     use InteractsWithSockets;
@@ -16,12 +15,18 @@ class PushQueueEvent
 
     public $order;
 
+    public $match_order;
+
+    public $volume;
+
     /**
      * Create a new event instance.
      */
-    public function __construct(Order $order)
+    public function __construct($order, $match_order, $volume)
     {
         $this->order = $order;
+        $this->match_order = $match_order;
+        $this->volume = $volume;
     }
 
     /**

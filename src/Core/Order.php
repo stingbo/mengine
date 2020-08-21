@@ -83,10 +83,10 @@ class Order
 
     public function __construct($uuid, $oid, $symbol, $transaction, $volume, $price)
     {
+        $this->setSymbol($symbol);
         $this->setAccuracy();
         $this->setUuid($uuid);
         $this->setOid($oid);
-        $this->setSymbol($symbol);
         $this->setTransaction($transaction);
         $this->setVolume($volume);
         $this->setPrice($price);
@@ -181,9 +181,12 @@ class Order
         return $this;
     }
 
+    /**
+     * set accuracy.
+     */
     public function setAccuracy()
     {
-        $accuracy = config('mengine.mengine.accuracy');
+        $accuracy = config("mengine.mengine.{$this->symbol}_accuracy") ?? config('mengine.mengine.accuracy');
         if (floor(0) !== (floatval($accuracy) - $accuracy)) {
             throw new InvalidArgumentException(__METHOD__.' expects argument config.mengine.mengine.accuracy is a positive integer.');
         }
@@ -226,7 +229,7 @@ class Order
     }
 
     /**
-     * hash模拟Link.
+     * hash模拟node.
      */
     public function setNode()
     {
