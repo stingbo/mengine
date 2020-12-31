@@ -11,7 +11,7 @@
 
 ### 号外
 
-* [已经出Go微服务撮合啦](https://github.com/stingbo/gome)，欢迎使用并提issue
+* **[已经出Golang微服务撮合啦](https://github.com/stingbo/gome)**，欢迎使用并提issue
 
 ### 使用说明
 * 已有数据的系统如果使用此库，可以自己写一个初始化脚本，先把数据跑入队列
