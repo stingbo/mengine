@@ -46,11 +46,16 @@ class CommissionPoolService extends AbstractCommissionPool
      */
     public function deletePoolOrder(Order $order)
     {
-        // 更新委托量
-        $depth_link = new DepthLinkService();
-
+        $link_service = new LinkService($order->node_link);
+        $node = $link_service->getNode($order->node);
+        if (!$node) {
+            return false;
+        }
         // order里的volume替换为缓存里节点上的数量,防止order里的数量与当初push的不一致或者部分成交
         $order->volume = $node->volume;
+
+        // 更新委托量
+        $depth_link = new DepthLinkService();
         $depth_link->deleteDepthHash($order);
 
         // 从深度列表里删除
