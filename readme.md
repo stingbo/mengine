@@ -26,7 +26,7 @@ use StingBo\Mengine\Core\Order;
 $uuid = 3; // 用户唯一标识
 $oid = 4; // 订单唯一标识
 $symbol = 'abc2usdt'; // 交易对
-$transaction = 'buy'; // 交易方向，buy/sale
+$transaction = 'buy'; // 交易方向，buy/sell
 $price = 0.4; // 交易价格，会根据设置精度转化为整数
 $volume = 15; // 交易数量，会根据设置精度转化为整数
 
@@ -40,7 +40,7 @@ return [
         // 交易类型，不可更改
         'transaction' => [
             'buy',
-            'sale',
+            'sell',
         ],
         // 精度，可更改
         'accuracy' => 8, //default        
