@@ -5,7 +5,7 @@ return [
         // 交易类型，不可更改
         'transaction' => [
             'buy',
-            'sale',
+            'sell',
         ],
         // 精度，可更改
         'accuracy' => 8,
