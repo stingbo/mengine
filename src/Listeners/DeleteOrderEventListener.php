@@ -20,7 +20,8 @@ class DeleteOrderEventListener
     /**
      * Handle the event.
      *
-     * @param object $event
+     * @param DeleteOrderEvent $event
+     * @return bool
      */
     public function handle(DeleteOrderEvent $event)
     {

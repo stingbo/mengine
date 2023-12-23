@@ -67,7 +67,7 @@ $ms->pushQueue($order);
 ```
 Start the queue task:
 `php artisan queue:work --queue=abc2usdt`
-You can also use horizon and supervisor to assist, making your work more efficient!
+You can also use `horizon` and `supervisor` to assist, making your work more efficient!
 
 When the queue is consumed, it will enter the matching program. The general steps are as follows: 
 1. Get matching delegated orders.
