@@ -2,7 +2,9 @@
     "name": "sting_bo/mengine",
     "description": "Matching Engine For Laravel",
     "require": {
-        "predis/predis": "^1.1"
+        "php": "^7.4",
+        "predis/predis": "^1.1",
+        "ext-bcmath": "*"
     },
     "license": "MIT",
     "authors": [

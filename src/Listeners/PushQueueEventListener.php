@@ -7,7 +7,7 @@ use StingBo\Mengine\Services\CommissionPoolService;
 
 class PushQueueEventListener
 {
-    public $service;
+    public CommissionPoolService $service;
 
     /**
      * Create the event listener.
@@ -19,10 +19,8 @@ class PushQueueEventListener
 
     /**
      * Handle the event.
-     *
-     * @param object $event
      */
-    public function handle(PushQueueEvent $event)
+    public function handle(PushQueueEvent $event): bool
     {
         $this->service->pushPool($event->order);
 

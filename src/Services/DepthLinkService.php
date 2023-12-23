@@ -11,7 +11,7 @@ class DepthLinkService
     /**
      * 放入价格点对应的单据.
      */
-    public function pushDepthNode(Order $order)
+    public function pushDepthNode(Order $order): bool
     {
         $link_service = new LinkService($order->node_link);
 
@@ -28,12 +28,14 @@ class DepthLinkService
         }
 
         $link_service->setLast($order);
+
+        return true;
     }
 
     /**
      * 从价格点对应的单据里删除.
      */
-    public function deleteDepthNode(Order $order)
+    public function deleteDepthNode(Order $order): bool
     {
         $link_service = new LinkService($order->node_link);
         $order = $link_service->getCurrent($order->node);

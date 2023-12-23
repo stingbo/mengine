@@ -34,7 +34,7 @@ class MengineService extends AbstractMengine
     /**
      * 从hash标识池判断委托是否已经删除.
      */
-    public function isHashDeleted(Order $order)
+    public function isHashDeleted(Order $order): bool
     {
         if (Redis::hexists($order->order_hash_key, $order->order_hash_field)) {
             return false;
@@ -83,7 +83,7 @@ class MengineService extends AbstractMengine
     /**
      * 获取深度列表.
      */
-    public function getDepth($symbol, $transaction)
+    public function getDepth($symbol, $transaction): array
     {
         $depths = [];
         if (config('mengine.mengine.transaction')[0] == $transaction) {
@@ -112,7 +112,7 @@ class MengineService extends AbstractMengine
     /**
      * 获取反向深度列表.
      */
-    public function getMutexDepth($symbol, $transaction, $price)
+    public function getMutexDepth($symbol, $transaction, $price): array
     {
         $depths = [];
         if (config('mengine.mengine.transaction')[0] == $transaction) {

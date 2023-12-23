@@ -7,79 +7,70 @@ use InvalidArgumentException;
 class Order
 {
     /**
-     * 唯一标识，可以是用户id.
+     * Unique identifier, can be user ID.
      */
-    public $uuid;
+    public string $uuid;
 
     /**
-     * 单据id.
+     * order id.
      */
-    public $oid;
+    public string $oid;
 
     /**
-     * 符号.
+     * abc2usdt.
      */
-    public $symbol;
+    public string $symbol;
 
     /**
-     * 买卖.
+     * Buy/Sell.
      */
-    public $transaction;
+    public string $transaction;
+
+    public float $volume;
+
+    public float $price;
+
+    public int $accuracy;
 
     /**
-     * 数量.
+     * node.
      */
-    public $volume;
+    public string $node;
+
+    public bool $is_first = false;
+    public bool $is_last = false;
 
     /**
-     * 价格.
-     */
-    public $price;
-
-    /**
-     * 精度.
-     */
-    public $accuracy;
-
-    /**
-     * 节点.
-     */
-    public $node;
-
-    public $is_first = false;
-    public $is_last = false;
-
-    /**
-     * 节点前一个.
+     * prev node.
      */
     public $prev_node;
 
     /**
-     * 节点后一个.
+     * next node.
      */
     public $next_node;
 
     /**
-     * 节点链.
+     * node link.
      */
-    public $node_link;
+    public string $node_link;
 
     /**
-     * hash对比池标识.
+     * hash Compare Pool Identifiers.
      */
-    public $order_hash_key;
-    public $order_hash_field;
+    public string $order_hash_key;
+    public string $order_hash_field;
 
     /**
-     * zset委托列表.
+     * zset Order List.
      */
-    public $order_list_zset_key;
+    public string $order_list_zset_key;
 
     /**
-     * hash委托深度.
+     * hash Order Depth.
      */
-    public $order_depth_hash_key;
-    public $order_depth_hash_field;
+    public string $order_depth_hash_key;
+    public string $order_depth_hash_field;
 
     public function __construct($uuid, $oid, $symbol, $transaction, $volume, $price)
     {
@@ -100,7 +91,7 @@ class Order
     /**
      * set uuid.
      */
-    public function setUuid($uuid)
+    public function setUuid($uuid): Order
     {
         if (!$uuid) {
             throw new InvalidArgumentException(__METHOD__.' expects argument uuid is not empty.');
@@ -114,7 +105,7 @@ class Order
     /**
      * set oid.
      */
-    public function setOid($oid)
+    public function setOid($oid): Order
     {
         if (!$oid) {
             throw new InvalidArgumentException(__METHOD__.' expects argument oid is not empty.');
@@ -128,7 +119,7 @@ class Order
     /**
      * set symbol.
      */
-    public function setSymbol($symbol)
+    public function setSymbol(string $symbol): Order
     {
         if (!$symbol) {
             throw new InvalidArgumentException(__METHOD__.' expects argument symbol is not empty.');
@@ -142,7 +133,7 @@ class Order
     /**
      * set transaction.
      */
-    public function setTransaction($transaction)
+    public function setTransaction($transaction): Order
     {
         if (!in_array($transaction, config('mengine.mengine.transaction'))) {
             throw new InvalidArgumentException(__METHOD__.' expects argument transaction to be a valid type of [config.mengine.transaction].');
@@ -156,12 +147,21 @@ class Order
     /**
      * set volume.
      */
-    public function setVolume($volume)
+    public function setVolume($volume): Order
     {
         if (floatval($volume) <= 0) {
             throw new InvalidArgumentException(__METHOD__.' expects argument volume greater than 0.');
         }
+        if (config('mengine.mengine.strict_mode')) { // In strict mode, the decimal places cannot exceed the configured length.
+            $number_string = strval($volume); // Convert the number to a string.
+            // Use a regular expression to match the decimal part.
+            if (preg_match('/\.\d{' . $this->accuracy . ',}/', $number_string)) {
+                throw new InvalidArgumentException(__METHOD__.' decimal places exceed the configured length.');
+            }
+        }
 
+        // Truncate the decimal part.
+        $volume = number_format($volume, $this->accuracy, '.', '');
         $this->volume = bcmul($volume, bcpow(10, $this->accuracy));
 
         return $this;
@@ -170,12 +170,19 @@ class Order
     /**
      * set price.
      */
-    public function setPrice($price)
+    public function setPrice($price): Order
     {
         if (floatval($price) <= 0) {
             throw new InvalidArgumentException(__METHOD__.' expects argument price greater than 0.');
         }
+        if (config('mengine.mengine.strict_mode')) {
+            $number_string = strval($price);
+            if (preg_match('/\.\d{' . $this->accuracy . ',}/', $number_string)) {
+                throw new InvalidArgumentException(__METHOD__.' decimal places exceed the configured length.');
+            }
+        }
 
+        $price = number_format($price, $this->accuracy, '.', '');
         $this->price = bcmul($price, bcpow(10, $this->accuracy));
 
         return $this;
@@ -184,7 +191,7 @@ class Order
     /**
      * set accuracy.
      */
-    public function setAccuracy()
+    public function setAccuracy(): Order
     {
         $accuracy = config("mengine.mengine.{$this->symbol}_accuracy") ?? config('mengine.mengine.accuracy');
         if (floor(0) !== (floatval($accuracy) - $accuracy)) {
@@ -199,7 +206,7 @@ class Order
     /**
      * 委托标识池field.
      */
-    public function setOrderHashKey()
+    public function setOrderHashKey(): Order
     {
         $this->order_hash_key = $this->symbol.':comparison';
         $this->order_hash_field = $this->symbol.':'.$this->uuid.':'.$this->oid;
@@ -210,7 +217,7 @@ class Order
     /**
      * 委托列表.
      */
-    public function setListZsetKey()
+    public function setListZsetKey(): Order
     {
         $this->order_list_zset_key = $this->symbol.':'.$this->transaction;
 
@@ -220,7 +227,7 @@ class Order
     /**
      * 深度.
      */
-    public function setDepthHashKey()
+    public function setDepthHashKey(): Order
     {
         $this->order_depth_hash_key = $this->symbol.':depth';
         $this->order_depth_hash_field = $this->symbol.':depth:'.$this->price;
@@ -231,7 +238,7 @@ class Order
     /**
      * hash模拟node.
      */
-    public function setNode()
+    public function setNode(): Order
     {
         $this->node = $this->symbol.':node:'.$this->oid;
 
@@ -241,7 +248,7 @@ class Order
     /**
      * hash模拟Link.
      */
-    public function setNodeLink()
+    public function setNodeLink(): Order
     {
         $this->node_link = $this->symbol.':link:'.$this->price;
 

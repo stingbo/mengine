@@ -3,13 +3,14 @@
 namespace StingBo\Mengine\Services;
 
 use Illuminate\Support\Facades\Redis;
+use StingBo\Mengine\Exceptions\InvalidParamException;
 
 /**
  * 某个价位对应的单据链表.
  */
 class LinkService
 {
-    public $link;
+    public string $link;
 
     public $current;
 
@@ -55,7 +56,6 @@ class LinkService
     public function setFirstPointer($node_name)
     {
         return $this->setNode('first', $node_name);
-        //return Redis::hset($this->link, 'first', $node_name);
     }
 
     /**
@@ -82,7 +82,6 @@ class LinkService
     public function setLastPointer($node_name)
     {
         return $this->setNode('last', $node_name);
-        //return Redis::hset($this->link, 'last', $node_name);
     }
 
     public function getCurrent($field = '')
@@ -183,7 +182,7 @@ class LinkService
         } elseif ($order->is_first) { // 首节点
             $next = $this->getNext();
             if (!$next) {
-                throw new InvalidArgumentException(__METHOD__.' expects next node is not empty.');
+                throw new InvalidParamException(__METHOD__.' expects next node is not empty.');
             }
             Redis::hdel($this->link, $order->node);
 
@@ -194,7 +193,7 @@ class LinkService
         } elseif ($order->is_last) { // 尾结点
             $prev = $this->getPrev();
             if (!$prev) {
-                throw new InvalidArgumentException(__METHOD__.' expects prev node is not empty.');
+                throw new InvalidParamException(__METHOD__.' expects prev node is not empty.');
             }
             Redis::hdel($this->link, $order->node);
 
@@ -206,7 +205,7 @@ class LinkService
             $prev = $this->getNode($order->prev_node);
             $next = $this->getNode($order->next_node);
             if (!$prev || !$next) {
-                throw new InvalidArgumentException(__METHOD__.' expects relation node is not empty.');
+                throw new InvalidParamException(__METHOD__.' expects relation node is not empty.');
             }
             $prev->next_node = $next->node;
             $next->prev_node = $prev->node;

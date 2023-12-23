@@ -13,9 +13,9 @@ class CommissionPoolService extends AbstractCommissionPool
     /**
      * 放入委托池.
      */
-    public function pushPool(Order $order)
+    public function pushPool(Order $order): bool
     {
-        $ms_service = new MengineService($order);
+        $ms_service = new MengineService();
         if ($ms_service->isHashDeleted($order)) {
             return false;
         }
@@ -23,8 +23,7 @@ class CommissionPoolService extends AbstractCommissionPool
         $ms_service->deleteHashOrder($order);
         $list = $ms_service->getMutexDepth($order->symbol, $order->transaction, $order->price);
         if ($list) {
-            // 撮合
-            $order = $this->matchUp($order, $list);
+            $order = $this->matchUp($order, $list); // 撮合
             if (!$order) {
                 return false;
             }
@@ -39,12 +38,14 @@ class CommissionPoolService extends AbstractCommissionPool
         $depth_link->pushDepthNode($order);
 
         event(new PushQueueEvent($order));
+
+        return true;
     }
 
     /**
      * 撤单从委托池删除.
      */
-    public function deletePoolOrder(Order $order)
+    public function deletePoolOrder(Order $order): bool
     {
         $link_service = new LinkService($order->node_link);
         $node = $link_service->getNode($order->node);
@@ -66,17 +67,19 @@ class CommissionPoolService extends AbstractCommissionPool
 
         // 撤单成功通知
         event(new DeleteOrderSuccEvent($order));
+
+        return true;
     }
 
     /**
      * 撮合.
      *
-     * @param object $order 下单
-     * @param array  $list  价格匹配部分
+     * @param Order $order 下单
+     * @param array $list  价格匹配部分
      *
-     * @return mix
+     * @return null|Order
      */
-    public function matchUp(Order $order, $list)
+    public function matchUp(Order $order, array $list): ?Order
     {
         // 撮合
         foreach ($list as $match_info) {
@@ -93,7 +96,7 @@ class CommissionPoolService extends AbstractCommissionPool
             return $order;
         }
 
-        return false;
+        return null;
     }
 
     public function matchOrder($order, $link_service)
@@ -135,6 +138,8 @@ class CommissionPoolService extends AbstractCommissionPool
 
                     // 撮合成功通知
                     event(new MatchEvent($order, $match_order, $match_volume));
+                    break;
+                default:
                     break;
             }
 
