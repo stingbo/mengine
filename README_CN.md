@@ -42,9 +42,16 @@ return [
             'buy',
             'sell',
         ],
-        // 精度，可更改
-        'accuracy' => 8, //default        
-        'test2usdt_accuracy' => 4, //设置交易对精度则使用，没有则取accuracy
+        
+        // 默认精度，可更改
+        'accuracy' => 8,
+        // 设置了交易对精度则使用，没有则取accuracy
+        'abc2usdt_accuracy' => 6, // 交易对示例
+        'test2usdt_accuracy' => 7, // 交易对示例
+        
+        // 如果严格模式为true，会校验交易量或价格的小数位长度必须小于设置的长度，否则会下单失败
+        // 如果严格模式为false，则会截断数据到设定的小数位长度
+        'strict_mode' => false,
     ],
 ];
 
