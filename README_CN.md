@@ -132,3 +132,10 @@ $ms->getDepth($symbol, $transaction);
 本地垃圾笔记本上测试，交易对撮合速度平均在200笔/s，后续将继续优化撮合速度
 
 ![基于redis的撮合引擎设计](https://raw.githubusercontent.com/stingbo/image/master/%E6%95%B0%E5%AD%97%E8%B4%A7%E5%B8%81%E4%BA%A4%E6%98%93%E6%89%80-%E5%9F%BA%E4%BA%8Eredis%E7%9A%84%E7%AE%80%E5%8D%95%E6%92%AE%E5%8D%95%E5%BC%95%E6%93%8E.png)
+
+## 技术支持
+
+| 联系方式 | 联系我 |
+| :---: | :---: |
+| QQ群 | 871358160 |
+| 邮箱 | sting_bo@163.com |
