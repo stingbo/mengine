@@ -13,6 +13,7 @@ use StingBo\Mengine\Events\MatchEvent;
 use StingBo\Mengine\Exceptions\DeleteOrderException;
 use StingBo\Mengine\Jobs\DeleteOrderJob;
 use StingBo\Mengine\Services\CommissionPoolService;
+use StingBo\Mengine\Services\DepthCleanupService;
 use StingBo\Mengine\Services\DepthLinkService;
 use StingBo\Mengine\Services\LinkService;
 use StingBo\Mengine\Services\MengineService;
@@ -219,6 +220,54 @@ $tests = [
                 ['price' => '200000000', 'volume' => '700000000'],
             ], $engine->getDepth($symbol, 'sell'));
         }
+    },
+    'historical depth cleanup previews and removes only orphaned zero fields' => function () use ($primary) {
+        $symbol = $GLOBALS['symbol'];
+        $key = $symbol.':depth';
+        foreach (['100' => '0', '200' => '0', '300' => '7', '400' => '-1', '500' => '0'] as $price => $volume) {
+            $primary->hset($key, $key.':'.$price, $volume);
+        }
+        $primary->hset($key, 'unrelated', '0');
+        $primary->zadd($symbol.':buy', '500', '500');
+        $primary->hset($symbol.':other:depth', $symbol.':other:depth:100', '0');
+        $cleanup = new DepthCleanupService();
+
+        check(2, $cleanup->clean($symbol, 1));
+        check('0', $primary->hget($key, $key.':100'));
+        check(2, $cleanup->clean($symbol, 1, execute: true));
+        check(0, $cleanup->clean($symbol, 1, execute: true));
+        check(['300' => '7', '400' => '-1', '500' => '0'], array_combine(
+            ['300', '400', '500'],
+            array_values($primary->hmget($key, [$key.':300', $key.':400', $key.':500']))
+        ));
+        check('0', $primary->hget($key, 'unrelated'));
+        check('0', $primary->hget($symbol.':other:depth', $symbol.':other:depth:100'));
+        check(['500'], $primary->zrange($symbol.':buy', 0, -1));
+    },
+    'historical cleanup scans multiple pages without deleting a relisted price' => function () use ($engine, $primary) {
+        $symbol = $GLOBALS['symbol'];
+        $order = order(1, 'sell', '3');
+        $key = $order->order_depth_hash_key;
+        $primary->hset($key, $order->order_depth_hash_field, '0');
+        $engine->pushQueue($order);
+        RedisFacade::$beforeWrite = function () {
+            runJob(array_shift($GLOBALS['jobs']));
+        };
+        RedisFacade::$commands = [];
+
+        $cleanup = new DepthCleanupService();
+        check(0, $cleanup->clean($symbol, 25, execute: true));
+        for ($i = 1; $i <= 600; ++$i) {
+            $primary->hset($key, $key.':'.$i, '0');
+        }
+        RedisFacade::$commands = [];
+        check(600, $cleanup->clean($symbol, 25, execute: true));
+        $scanCalls = array_filter(RedisFacade::$commands, fn ($command) =>
+            $command[0] === 'eval' && str_contains($command[1], "redis.call('HSCAN'")
+        );
+        check(true, count($scanCalls) > 1);
+        check([['price' => '100000000', 'volume' => '300000000']], $engine->getDepth($symbol, 'sell'));
+        check(1, $primary->hlen($key));
     },
     'adjacent large prices remain distinct in Redis' => function () use ($engine) {
         $engine->pushQueue(order(1, 'sell', '1', '90071992.54740991'));

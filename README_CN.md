@@ -156,6 +156,17 @@ $ms->getDepth($symbol, $transaction);
 
 使用 `MENGINE_REDIS_PORT=6379 php tests/regression.php` 对测试 Redis 实例运行回归测试。测试依赖 BCMath，并使用两个 Redis 连接模拟 worker 交错执行。默认使用 PhpRedis。安装 Composer 依赖后，可设置 `MENGINE_REDIS_DRIVER=predis` 改用 Predis。
 
+### 清理历史零值深度字段
+
+在宿主 Laravel 项目中运行 Artisan 命令，显式传入要扫描的交易对。第一条命令按交易对预览可清理字段数。加上 `--execute` 后执行删除。
+
+```bash
+php artisan mengine:cleanup-depth btc2usdt eth2usdt --batch=200
+php artisan mengine:cleanup-depth btc2usdt eth2usdt --batch=200 --execute
+```
+
+Redis 会在删除时重新检查字段仍为零，且该价位未出现在买卖任一索引中。预览反映扫描时的订单簿状态，实际删除数量可能随挂单变化。批大小默认为 200，可设为 1 至 1000。
+
 ### 总结
 
 本地垃圾笔记本上测试，交易对撮合速度平均在200笔/s，后续将继续优化撮合速度

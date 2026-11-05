@@ -41,7 +41,7 @@ namespace Illuminate\Support\Facades {
         {
             self::$commands[] = [strtolower($method), $arguments[0]];
 
-            if ($method === 'eval' && self::$beforeWrite) {
+            if ($method === 'eval' && self::$beforeWrite && !str_contains($arguments[0], "redis.call('HSCAN'")) {
                 $callback = self::$beforeWrite;
                 self::$beforeWrite = null;
                 $callback();

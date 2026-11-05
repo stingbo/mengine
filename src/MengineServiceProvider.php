@@ -3,6 +3,7 @@
 namespace StingBo\Mengine;
 
 use Illuminate\Support\ServiceProvider;
+use StingBo\Mengine\Console\CleanupDepthCommand;
 
 class MengineServiceProvider extends ServiceProvider
 {
@@ -21,6 +22,10 @@ class MengineServiceProvider extends ServiceProvider
      */
     public function boot()
     {
+        if ($this->app->runningInConsole()) {
+            $this->commands([CleanupDepthCommand::class]);
+        }
+
         $this->publishes([
             __DIR__.'/../config/mengine.php' => config_path('mengine.php'),
         ]);

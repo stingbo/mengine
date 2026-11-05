@@ -157,6 +157,17 @@ Deploy by stopping old workers before starting new ones so all writers use the s
 
 Run the regression suite against a test Redis instance with `MENGINE_REDIS_PORT=6379 php tests/regression.php`. The suite requires BCMath and uses separate Redis connections to interleave two workers. It uses PhpRedis by default. After installing Composer dependencies, set `MENGINE_REDIS_DRIVER=predis` to run it with Predis.
 
+### Clean up historical zero depth fields
+
+Run the Artisan command from your Laravel application. Pass the trading pairs to scan. The first command previews how many fields qualify per pair. Add `--execute` to delete them.
+
+```bash
+php artisan mengine:cleanup-depth btc2usdt eth2usdt --batch=200
+php artisan mengine:cleanup-depth btc2usdt eth2usdt --batch=200 --execute
+```
+
+The command only removes fields that still contain zero and whose price is absent from both order book indexes when Redis checks them. A preview reflects the book as it is scanned, so counts can change before execution. The batch size defaults to 200 and accepts 1 through 1000.
+
 ### Summary
 
 Tested on a local, average matching speed for transactions is around 200 per second. Further optimizations for matching speed are planned for the future.
