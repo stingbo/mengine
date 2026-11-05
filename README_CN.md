@@ -106,6 +106,9 @@ $order = new Order($uuid, $oid, $symbol, $transaction, $volume, $price);
 $ms = new MengineService();
 $ms->deleteOrder($order);
 ```
+
+`deleteOrder()` 会在撤单任务执行时撤销订单的全部剩余未成交量。撤单时，传给 `Order` 的 `$volume` 不参与撤单量计算。例如，订单原有 10 股，已成交 3 股，即使传入 `$volume = 1`，也会撤掉剩余的 7 股。当前接口仅支持全撤。
+
 此撮合引擎没有实现像数据库那样的锁机制，为了防止有单子在被撮合时又有撤销的命令出现，所以下单与撤单都走的同一个队列，保证了顺序性，每个交易对是隔离的队列，效率也有一定的保证，但开发需要实现异步通知用户功能，注册监听器如下：
 ```php
 // 撤单成功通知
