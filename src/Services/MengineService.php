@@ -3,6 +3,7 @@
 namespace StingBo\Mengine\Services;
 
 use Illuminate\Support\Facades\Redis;
+use InvalidArgumentException;
 use StingBo\Mengine\Core\AbstractMengine;
 use StingBo\Mengine\Core\Order;
 use StingBo\Mengine\Exceptions\DeleteOrderException;
@@ -46,10 +47,21 @@ class MengineService extends AbstractMengine
     /**
      * 从hash标识池删除.
      */
-    public function deleteOrder(Order $order)
+    public function deleteOrder(Order $order, $volume = null)
     {
-        // 第一步，从标识池删除，避免队列有积压时未消费问题
-        $this->deleteHashOrder($order);
+        if ($volume === null) {
+            // 全撤可以阻止尚未消费的挂单任务。
+            $this->deleteHashOrder($order);
+        } else {
+            if (!is_numeric($volume) || !is_finite((float) $volume)) {
+                throw new InvalidArgumentException('Cancellation volume must be a finite number.');
+            }
+            $order = clone $order;
+            $order->setVolume($volume);
+            if ($order->volume <= 0 || $order->volume > 9007199254740991) {
+                throw new InvalidArgumentException('Cancellation volume is outside the supported range.');
+            }
+        }
 
         $link_service = new LinkService($order->node_link);
         $node = $link_service->getNode($order->node);
@@ -67,7 +79,7 @@ class MengineService extends AbstractMengine
         }
 
         // 第二步，从委托池里删除
-        dispatch((new DeleteOrderJob($order))->allOnQueue($order->symbol));
+        dispatch((new DeleteOrderJob($order, $volume !== null))->allOnQueue($order->symbol));
     }
 
     /**

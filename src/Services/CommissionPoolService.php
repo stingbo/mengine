@@ -2,6 +2,8 @@
 
 namespace StingBo\Mengine\Services;
 
+use Illuminate\Support\Facades\Redis;
+use RuntimeException;
 use StingBo\Mengine\Core\AbstractCommissionPool;
 use StingBo\Mengine\Core\Order;
 use StingBo\Mengine\Events\DeleteOrderSuccEvent;
@@ -67,6 +69,69 @@ class CommissionPoolService extends AbstractCommissionPool
 
         // 撤单成功通知
         event(new DeleteOrderSuccEvent($order));
+
+        return true;
+    }
+
+    /**
+     * Cancel up to the requested volume without changing the order's queue position.
+     */
+    public function reducePoolOrder(Order $order, string $cancellationId): bool
+    {
+        $receipt = $order->node_link.':cancel:'.$cancellationId;
+        if (Redis::exists($receipt)) {
+            return true;
+        }
+
+        $stored = Redis::hget($order->node_link, $order->node);
+        if (!$stored) {
+            return false;
+        }
+
+        $node = unserialize($stored);
+        if ($node->uuid !== $order->uuid || $node->transaction !== $order->transaction) {
+            return false;
+        }
+        if ($order->volume >= $node->volume) {
+            return $this->deletePoolOrder($order);
+        }
+
+        $volume = sprintf('%.0F', $order->volume);
+        $node->volume = bcsub(sprintf('%.0F', $node->volume), $volume, 0);
+
+        // Update the node and price depth together. Keep a receipt for queue retries.
+        $script = <<<'LUA'
+if redis.call('EXISTS', KEYS[3]) == 1 then
+    return 0
+end
+if redis.call('HGET', KEYS[1], ARGV[1]) ~= ARGV[2] then
+    return -1
+end
+redis.call('HINCRBY', KEYS[2], ARGV[4], ARGV[5])
+redis.call('HSET', KEYS[1], ARGV[1], ARGV[3])
+redis.call('SET', KEYS[3], '1', 'EX', 604800)
+return 1
+LUA;
+
+        $result = Redis::eval(
+            $script,
+            3,
+            $node->node_link,
+            $node->order_depth_hash_key,
+            $receipt,
+            $node->node,
+            $stored,
+            serialize($node),
+            $node->order_depth_hash_field,
+            '-'.$volume
+        );
+
+        if ($result !== 0 && $result !== 1) {
+            throw new RuntimeException('Could not apply partial cancellation to the current order.');
+        }
+        if ($result === 1) {
+            event(new DeleteOrderSuccEvent($order));
+        }
 
         return true;
     }

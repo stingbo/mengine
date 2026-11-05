@@ -19,12 +19,17 @@ class DeleteOrderJob implements ShouldQueue
 
     public $order;
 
+    public $cancellationId = null;
+
     /**
      * Create a new job instance.
      */
-    public function __construct(Order $order)
+    public function __construct(Order $order, bool $partial = false)
     {
         $this->order = $order;
+        if ($partial) {
+            $this->cancellationId = bin2hex(random_bytes(16));
+        }
     }
 
     /**
@@ -32,6 +37,10 @@ class DeleteOrderJob implements ShouldQueue
      */
     public function handle(CommissionPoolService $service)
     {
+        if ($this->cancellationId !== null) {
+            return $service->reducePoolOrder($this->order, $this->cancellationId);
+        }
+
         $service->deletePoolOrder($this->order);
 
         return true;

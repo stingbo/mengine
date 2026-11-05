@@ -108,7 +108,15 @@ $ms = new MengineService();
 $ms->deleteOrder($order);
 ```
 
-`deleteOrder()` cancels the entire unfilled quantity when the cancellation job runs. The `$volume` passed to `Order` is ignored for cancellation. For example, if 3 units of a 10-unit order have already filled, passing `$volume = 1` still cancels all 7 remaining units. Partial cancellation is currently unsupported.
+Calling `deleteOrder($order)` cancels the entire unfilled quantity when the cancellation job runs. The `$volume` passed to the `Order` constructor does not affect the cancellation amount.
+
+For partial cancellation, pass the requested quantity in trading units as the second argument:
+
+```php
+$ms->deleteOrder($order, 1);
+```
+
+If 3 units of a 10-unit order have already filled when the job runs, this cancels 1 unit and leaves 6 units at the same position in the order book. If the requested quantity reaches or exceeds the remaining quantity, the job cancels the entire remainder. `DeleteOrderSuccEvent` reports the quantity actually canceled in `order->volume`, scaled using the trading pair's precision.
 
 This matching engine does not implement locking mechanisms like databases. To prevent a situation where an order is being matched and a cancellation command is issued, both placing and canceling orders use the same queue to ensure order, and each trading pair has an isolated queue. This ensures efficiency, but developers need to implement asynchronous notification functionality. Register the listener as follows:
 ```php
