@@ -16,6 +16,8 @@ class PushQueueEvent
 
     public $order;
 
+    public $eventId = null;
+
     /**
      * Create a new event instance.
      */

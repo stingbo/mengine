@@ -51,7 +51,7 @@ return [
         'abc2usdt_accuracy' => 6, // Example of a trading pair
         'test2usdt_accuracy' => 7, // Example of a trading pair
 
-        // If strict mode is set to true, it will validate that the decimal places of the transaction volume or price must be less than the configured length, otherwise the order will fail.
+        // If strict mode is set to true, it will validate that the decimal places of the transaction volume or price must not exceed the configured length, otherwise the order will fail.
         // If strict mode is set to false, the data will be truncated to the configured decimal places length.
         'strict_mode' => false,
     ],
@@ -108,7 +108,7 @@ $ms = new MengineService();
 $ms->deleteOrder($order);
 ```
 
-Calling `deleteOrder($order)` cancels the entire unfilled quantity when the cancellation job runs. The `$volume` passed to the `Order` constructor does not affect the cancellation amount.
+Calling `deleteOrder($order)` cancels the entire unfilled quantity when the cancellation job runs. The `$volume` passed to the `Order` constructor does not affect the cancellation amount. If the order is still pending, its original placement job skips matching and sends the cancellation event with the original quantity. Partial cancellation requires an order already on the book.
 
 For partial cancellation, pass the requested quantity in trading units as the second argument:
 
@@ -118,7 +118,9 @@ $ms->deleteOrder($order, 1);
 
 If 3 units of a 10-unit order have already filled when the job runs, this cancels 1 unit and leaves 6 units at the same position in the order book. If the requested quantity reaches or exceeds the remaining quantity, the job cancels the entire remainder. `DeleteOrderSuccEvent` reports the quantity actually canceled in `order->volume`, scaled using the trading pair's precision.
 
-This matching engine does not implement locking mechanisms like databases. To prevent a situation where an order is being matched and a cancellation command is issued, both placing and canceling orders use the same queue to ensure order, and each trading pair has an isolated queue. This ensures efficiency, but developers need to implement asynchronous notification functionality. Register the listener as follows:
+Orders and cancellations use the same queue for each trading pair. Workers commit order book changes atomically against a Redis revision. Concurrent jobs may commit in a different order from dequeue order. Use one worker per trading pair if execution order matters.
+
+Register the cancellation listener as follows:
 ```php
 // Successful cancellation notification
 event(new DeleteOrderSuccEvent($order));
@@ -138,6 +140,16 @@ $transaction = 'buy';
 $ms = new MengineService();
 $ms->getDepth($symbol, $transaction);
 ```
+
+### Precision and event recovery
+
+Pass prices and quantities as decimal strings to preserve the original input. The engine stores scaled integer strings. Strict mode accepts up to the configured number of decimal places. With strict mode disabled, excess places are truncated. Scaled prices and per-order quantities must be between 1 and 9,007,199,254,740,991, inclusive.
+
+Order book changes and pending events are saved in one Redis operation. Queue retries resume event delivery without repeating the mutation. Delivery is at least once. Listeners that update a database should deduplicate by the event's `eventId` in the same database transaction as their update. After retries are exhausted, call `(new CommissionPoolService())->replayPendingEvents($symbol)` to deliver pending events for the pair. Redis keeps operation receipts to recognize retries even after delivery completes.
+
+Deploy by stopping old workers before starting new ones so all writers use the same commit protocol. Existing exact legacy price levels can still be read. Reconcile and rebuild any legacy levels whose prices or quantities were already rounded incorrectly. Order book commits require the pair's keys to be on the same Redis server or cluster slot.
+
+Run the regression suite against a test Redis instance with `MENGINE_REDIS_PORT=6379 php tests/regression.php`. The suite requires BCMath and PhpRedis and uses separate Redis connections to interleave two workers.
 
 ### Summary
 

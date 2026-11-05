@@ -3,7 +3,6 @@
 namespace StingBo\Mengine\Services;
 
 use Illuminate\Support\Facades\Redis;
-use RuntimeException;
 use StingBo\Mengine\Core\AbstractCommissionPool;
 use StingBo\Mengine\Core\Order;
 use StingBo\Mengine\Events\DeleteOrderSuccEvent;
@@ -12,219 +11,222 @@ use StingBo\Mengine\Events\PushQueueEvent;
 
 class CommissionPoolService extends AbstractCommissionPool
 {
-    /**
-     * 放入委托池.
-     */
+    private static array $delivering = [];
+
     public function pushPool(Order $order): bool
     {
-        $ms_service = new MengineService();
-        if ($ms_service->isHashDeleted($order)) {
-            return false;
-        }
-
-        $ms_service->deleteHashOrder($order);
-        $list = $ms_service->getMutexDepth($order->symbol, $order->transaction, $order->price);
-        if ($list) {
-            $order = $this->matchUp($order, $list); // 撮合
-            if (!$order) {
+        return $this->apply($order, 'push', function (BookTransaction $redis, Order $order, array &$events) {
+            $marker = $redis->hget($order->order_hash_key, $order->order_hash_field);
+            if ($marker === null) {
                 return false;
             }
-        }
 
-        // 深度列表、数量更新、节点更新
-        $depth_link = new DepthLinkService();
-        $depth_link->pushZset($order);
+            [$pending, $cancellations] = $marker === '1' ? [null, []] : unserialize($marker);
+            if ($pending && !$pending->isSamePendingOrder($order)) {
+                return false;
+            }
 
-        $depth_link->pushDepthHash($order);
+            $redis->hdel($order->order_hash_key, $order->order_hash_field);
+            foreach ($cancellations as $cancellation) {
+                if ($cancellation->isSamePendingOrder($order)) {
+                    $events[] = new DeleteOrderSuccEvent($order);
 
-        $depth_link->pushDepthNode($order);
+                    return false;
+                }
+            }
 
-        event(new PushQueueEvent($order));
+            $prices = (new MengineService())->getMutexDepth($order->symbol, $order->transaction, Order::units($order->price));
+            $depth = new DepthLinkService($redis);
+            $this->matchPrices($order, $prices, $redis, $depth, $events);
+            if ($order->volume === '0') {
+                return false;
+            }
 
-        return true;
+            $depth->useExistingPriceLevel($order);
+            $depth->pushZset($order);
+            $depth->pushDepthHash($order);
+            $depth->pushDepthNode($order);
+            $events[] = new PushQueueEvent(clone $order);
+
+            return true;
+        });
     }
 
-    /**
-     * 撤单从委托池删除.
-     */
     public function deletePoolOrder(Order $order): bool
     {
-        $link_service = new LinkService($order->node_link);
-        $node = $link_service->getNode($order->node);
-        if (!$node) {
-            return false;
-        }
-        // order里的volume替换为缓存里节点上的数量,防止order里的数量与当初push的不一致或者部分成交
-        $order->volume = $node->volume;
-
-        // 更新委托量
-        $depth_link = new DepthLinkService();
-        $depth_link->deleteDepthHash($order);
-
-        // 从深度列表里删除
-        $depth_link->deleteZset($order);
-
-        // 从节点链上删除
-        $depth_link->deleteDepthNode($order);
-
-        // 撤单成功通知
-        event(new DeleteOrderSuccEvent($order));
-
-        return true;
+        return $this->cancel($order, null);
     }
 
-    /**
-     * Cancel up to the requested volume without changing the order's queue position.
-     */
     public function reducePoolOrder(Order $order, string $cancellationId): bool
     {
-        $receipt = $order->node_link.':cancel:'.$cancellationId;
-        if (Redis::exists($receipt)) {
-            return true;
-        }
-
-        $stored = Redis::hget($order->node_link, $order->node);
-        if (!$stored) {
-            return false;
-        }
-
-        $node = unserialize($stored);
-        if ($node->uuid !== $order->uuid || $node->transaction !== $order->transaction) {
-            return false;
-        }
-        if ($order->volume >= $node->volume) {
-            return $this->deletePoolOrder($order);
-        }
-
-        $volume = sprintf('%.0F', $order->volume);
-        $node->volume = bcsub(sprintf('%.0F', $node->volume), $volume, 0);
-
-        // Update the node and price depth together. Keep a receipt for queue retries.
-        $script = <<<'LUA'
-if redis.call('EXISTS', KEYS[3]) == 1 then
-    return 0
-end
-if redis.call('HGET', KEYS[1], ARGV[1]) ~= ARGV[2] then
-    return -1
-end
-redis.call('HINCRBY', KEYS[2], ARGV[4], ARGV[5])
-redis.call('HSET', KEYS[1], ARGV[1], ARGV[3])
-redis.call('SET', KEYS[3], '1', 'EX', 604800)
-return 1
-LUA;
-
-        $result = Redis::eval(
-            $script,
-            3,
-            $node->node_link,
-            $node->order_depth_hash_key,
-            $receipt,
-            $node->node,
-            $stored,
-            serialize($node),
-            $node->order_depth_hash_field,
-            '-'.$volume
-        );
-
-        if ($result !== 0 && $result !== 1) {
-            throw new RuntimeException('Could not apply partial cancellation to the current order.');
-        }
-        if ($result === 1) {
-            event(new DeleteOrderSuccEvent($order));
-        }
-
-        return true;
+        return $this->cancel($order, $cancellationId);
     }
 
-    /**
-     * 撮合.
-     *
-     * @param Order $order 下单
-     * @param array $list  价格匹配部分
-     *
-     * @return null|Order
-     */
+    private function cancel(Order $order, ?string $cancellationId): bool
+    {
+        $operation = $cancellationId === null ? 'cancel' : 'reduce:'.$cancellationId;
+
+        return $this->apply($order, $operation, function (BookTransaction $redis, Order $order, array &$events) use ($cancellationId) {
+            // Respect receipts written by workers running the previous release.
+            if ($cancellationId !== null && Redis::exists($order->node_link.':cancel:'.$cancellationId)) {
+                return true;
+            }
+
+            $link = new LinkService($order->node_link, $redis);
+            $node = $link->getCurrent($order->node);
+            if (!$node || !$node->hasSameIdentity($order)) {
+                return false;
+            }
+
+            $remaining = Order::units($node->volume);
+            if ($cancellationId === null || bccomp($order->volume, $remaining, 0) >= 0) {
+                $order->volume = $remaining;
+                $link->deleteNode($node);
+            } else {
+                $node->volume = bcsub($remaining, $order->volume, 0);
+                $link->setNode($node->node, $node);
+            }
+
+            $depth = new DepthLinkService($redis);
+            $depth->deleteDepthHash($order);
+            $depth->deleteZset($order);
+            $events[] = new DeleteOrderSuccEvent($order);
+
+            return true;
+        });
+    }
+
     public function matchUp(Order $order, array $list): ?Order
     {
-        // 撮合
-        foreach ($list as $match_info) {
-            $link_name = $order->symbol.':link:'.$match_info['price'];
-            $link_service = new LinkService($link_name);
+        $order->volume = $this->apply($order, 'match:'.Order::units($order->volume), function (BookTransaction $redis, Order $order, array &$events) use ($list) {
+            $this->matchPrices($order, $list, $redis, new DepthLinkService($redis), $events);
 
-            $order = $this->matchOrder($order, $link_service);
-            if ($order->volume <= 0) {
-                break;
-            }
-        }
+            return $order->volume;
+        });
 
-        if ($order->volume > 0) {
-            return $order;
-        }
-
-        return null;
+        return $order->volume === '0' ? null : $order;
     }
 
     public function matchOrder($order, $link_service)
     {
-        $match_order = $link_service->getFirst();
-        if ($match_order) {
-            $compare_result = bccomp($order->volume, $match_order->volume);
-            switch ($compare_result) {
-                case 1:
-                    $match_volume = $match_order->volume;
-                    $order->volume = bcsub($order->volume, $match_order->volume);
-                    $link_service->deleteNode($match_order);
-                    $this->deletePoolMatchOrder($match_order);
+        $order->volume = $this->apply($order, 'match-level:'.$link_service->link.':'.Order::units($order->volume), function (BookTransaction $redis, Order $order, array &$events) use ($link_service) {
+            $this->matchLevel($order, new LinkService($link_service->link, $redis), new DepthLinkService($redis), $events);
 
-                    // 撮合成功通知
-                    event(new MatchEvent($order, $match_order, $match_volume));
-
-                    // 递归撮合
-                    $this->matchOrder($order, $link_service);
-                    break;
-                case 0:
-                    $match_volume = $match_order->volume;
-                    $order->volume = bcsub($order->volume, $match_order->volume);
-                    $link_service->deleteNode($match_order);
-                    $this->deletePoolMatchOrder($match_order);
-
-                    // 撮合成功通知
-                    event(new MatchEvent($order, $match_order, $match_volume));
-                    break;
-                case -1:
-                    $match_volume = $order->volume;
-                    $match_order->volume = bcsub($match_order->volume, $order->volume);
-                    $order->volume = 0;
-                    $link_service->setNode($match_order->node, $match_order);
-
-                    // 委托池更新数量重新设置
-                    $match_order->volume = $match_volume;
-                    $this->deletePoolMatchOrder($match_order);
-
-                    // 撮合成功通知
-                    event(new MatchEvent($order, $match_order, $match_volume));
-                    break;
-                default:
-                    break;
-            }
-
-            return $order;
-        }
+            return $order->volume;
+        });
 
         return $order;
     }
 
-    /**
-     * 撮合成交更新委托池.
-     */
     public function deletePoolMatchOrder($order)
     {
-        $depth_link = new DepthLinkService();
+        BookTransaction::run($order->symbol, function (BookTransaction $redis) use ($order) {
+            $depth = new DepthLinkService($redis);
+            $depth->deleteDepthHash($order);
+            $depth->deleteZset($order);
+        });
+    }
 
-        // 更新委托量
-        $depth_link->deleteDepthHash($order);
+    private function matchPrices(Order $order, array $prices, BookTransaction $redis, DepthLinkService $depth, array &$events): void
+    {
+        foreach ($prices as $level) {
+            $link = new LinkService($order->symbol.':link:'.$level['price'], $redis);
+            $this->matchLevel($order, $link, $depth, $events);
+            if ($order->volume === '0') {
+                return;
+            }
+        }
+    }
 
-        // 从深度列表里删除
-        $depth_link->deleteZset($order);
+    private function matchLevel(Order $order, LinkService $link, DepthLinkService $depth, array &$events): void
+    {
+        while ($order->volume !== '0' && ($maker = $link->getFirst())) {
+            if ($maker->transaction === $order->transaction) {
+                return;
+            }
+
+            $available = Order::units($maker->volume);
+            $comparison = bccomp($order->volume, $available, 0);
+            $traded = $comparison < 0 ? $order->volume : $available;
+            $order->volume = bcsub($order->volume, $traded, 0);
+
+            if ($comparison < 0) {
+                $maker->volume = bcsub($available, $traded, 0);
+                $link->setNode($maker->node, $maker);
+            } else {
+                $link->deleteNode($maker);
+            }
+
+            $maker->volume = $traded;
+            $depth->deleteDepthHash($maker);
+            $depth->deleteZset($maker);
+            $events[] = new MatchEvent(clone $order, $maker, $traded);
+        }
+    }
+
+    private function apply(Order $order, string $operation, callable $plan)
+    {
+        $id = hash('sha256', serialize([$order->symbol, $order->transaction, $order->uuid, $order->oid, $operation]));
+        $receipts = $order->symbol.':mengine:receipts';
+        $outbox = $order->symbol.':mengine:outbox';
+
+        $result = BookTransaction::run($order->symbol, function (BookTransaction $redis) use ($order, $plan, $id, $receipts, $outbox) {
+            $receipt = $redis->hget($receipts, $id);
+            if ($receipt !== null) {
+                return unserialize($receipt);
+            }
+
+            $order = clone $order;
+            $order->volume = Order::units($order->volume);
+            $events = [];
+            $result = $plan($redis, $order, $events);
+            if ($events) {
+                foreach ($events as $index => $event) {
+                    $event->eventId = $id.':'.$index;
+                }
+                $redis->hset($outbox, $id, serialize($events));
+                $redis->hset($receipts, $id, serialize($result));
+            }
+
+            return $result;
+        });
+
+        $this->deliver($outbox, $id);
+
+        return $result;
+    }
+
+    /**
+     * Recover events after the queue has exhausted its retries.
+     */
+    public function replayPendingEvents(string $symbol): void
+    {
+        $outbox = $symbol.':mengine:outbox';
+        foreach (Redis::hkeys($outbox) as $id) {
+            $this->deliver($outbox, $id);
+        }
+    }
+
+    private function deliver(string $outbox, string $id): void
+    {
+        if (isset(self::$delivering[$id])) {
+            return;
+        }
+        $pending = Redis::hget($outbox, $id);
+        if (!$pending) {
+            return;
+        }
+
+        // A crash after dispatch and before acknowledgement can replay the
+        // batch. Consumers can use eventId to deduplicate these deliveries.
+        self::$delivering[$id] = true;
+        try {
+            foreach (unserialize($pending) as $event) {
+                event($event);
+            }
+            Redis::hdel($outbox, $id);
+        } finally {
+            unset(self::$delivering[$id]);
+        }
     }
 }

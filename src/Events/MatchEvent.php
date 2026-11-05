@@ -15,6 +15,8 @@ class MatchEvent
 
     public $order;
 
+    public $eventId = null;
+
     public $match_order;
 
     public $volume;

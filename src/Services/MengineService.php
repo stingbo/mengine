@@ -3,7 +3,6 @@
 namespace StingBo\Mengine\Services;
 
 use Illuminate\Support\Facades\Redis;
-use InvalidArgumentException;
 use StingBo\Mengine\Core\AbstractMengine;
 use StingBo\Mengine\Core\Order;
 use StingBo\Mengine\Exceptions\DeleteOrderException;
@@ -29,7 +28,11 @@ class MengineService extends AbstractMengine
      */
     public function pushHash(Order $order)
     {
-        Redis::hset($order->order_hash_key, $order->order_hash_field, 1);
+        BookTransaction::run($order->symbol, function (BookTransaction $redis) use ($order) {
+            if ($redis->hget($order->order_hash_key, $order->order_hash_field) === null) {
+                $redis->hset($order->order_hash_key, $order->order_hash_field, serialize([$order, []]));
+            }
+        });
     }
 
     /**
@@ -49,37 +52,51 @@ class MengineService extends AbstractMengine
      */
     public function deleteOrder(Order $order, $volume = null)
     {
-        if ($volume === null) {
-            // 全撤可以阻止尚未消费的挂单任务。
-            $this->deleteHashOrder($order);
-        } else {
-            if (!is_numeric($volume) || !is_finite((float) $volume)) {
-                throw new InvalidArgumentException('Cancellation volume must be a finite number.');
-            }
-            $order = clone $order;
+        $order = clone $order;
+        if ($volume === null && $this->cancelPendingOrder($order)) {
+            return;
+        }
+        if ($volume !== null) {
             $order->setVolume($volume);
-            if ($order->volume <= 0 || $order->volume > 9007199254740991) {
-                throw new InvalidArgumentException('Cancellation volume is outside the supported range.');
-            }
         }
 
+        (new DepthLinkService())->useExistingPriceLevel($order);
         $link_service = new LinkService($order->node_link);
         $node = $link_service->getNode($order->node);
         if (!$node) {
             throw new DeleteOrderException('order not exist', DeleteOrderException::NOT_EXIST);
         }
-        if ($node->uuid != $order->uuid) {
-            throw new DeleteOrderException('order message not match', DeleteOrderException::NOT_MATCH);
-        }
-        if ($node->symbol != $order->symbol) {
-            throw new DeleteOrderException('order message not match', DeleteOrderException::NOT_MATCH);
-        }
-        if ($node->transaction != $order->transaction) {
+        if (!$node->hasSameIdentity($order)) {
             throw new DeleteOrderException('order message not match', DeleteOrderException::NOT_MATCH);
         }
 
-        // 第二步，从委托池里删除
         dispatch((new DeleteOrderJob($order, $volume !== null))->allOnQueue($order->symbol));
+    }
+
+    private function cancelPendingOrder(Order $order): bool
+    {
+        return BookTransaction::run($order->symbol, function (BookTransaction $redis) use ($order) {
+            $marker = $redis->hget($order->order_hash_key, $order->order_hash_field);
+            if ($marker === null) {
+                return false;
+            }
+
+            // Old markers lack order details. The original push job will
+            // validate this request against its own payload before canceling.
+            [$pending, $cancellations] = $marker === '1' ? [null, []] : unserialize($marker);
+            if ($pending && !$pending->isSamePendingOrder($order)) {
+                throw new DeleteOrderException('order message not match', DeleteOrderException::NOT_MATCH);
+            }
+            foreach ($cancellations as $cancellation) {
+                if ($cancellation->isSamePendingOrder($order)) {
+                    return true;
+                }
+            }
+            $cancellations[] = $order;
+            $redis->hset($order->order_hash_key, $order->order_hash_field, serialize([$pending, $cancellations]));
+
+            return true;
+        });
     }
 
     /**
@@ -87,9 +104,11 @@ class MengineService extends AbstractMengine
      */
     public function deleteHashOrder(Order $order)
     {
-        if (!$this->isHashDeleted($order)) {
-            Redis::hdel($order->order_hash_key, $order->order_hash_field);
-        }
+        BookTransaction::run($order->symbol, function (BookTransaction $redis) use ($order) {
+            if ($redis->hget($order->order_hash_key, $order->order_hash_field) !== null) {
+                $redis->hdel($order->order_hash_key, $order->order_hash_field);
+            }
+        });
     }
 
     /**

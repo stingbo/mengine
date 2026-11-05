@@ -26,9 +26,11 @@ class Order
      */
     public string $transaction;
 
-    public float $volume;
+    /** @var string|float Scaled integer. Legacy serialized orders can contain a float. */
+    public $volume;
 
-    public float $price;
+    /** @var string|float Scaled integer. Legacy serialized orders can contain a float. */
+    public $price;
 
     public int $accuracy;
 
@@ -86,6 +88,20 @@ class Order
         $this->setDepthHashKey();
         $this->setNode();
         $this->setNodeLink();
+    }
+
+    public function hasSameIdentity(Order $order): bool
+    {
+        return $this->uuid === $order->uuid
+            && $this->oid === $order->oid
+            && $this->symbol === $order->symbol
+            && $this->transaction === $order->transaction;
+    }
+
+    public function isSamePendingOrder(Order $order): bool
+    {
+        return $this->hasSameIdentity($order)
+            && self::units($this->price) === self::units($order->price);
     }
 
     /**
@@ -149,20 +165,7 @@ class Order
      */
     public function setVolume($volume): Order
     {
-        if (floatval($volume) <= 0) {
-            throw new InvalidArgumentException(__METHOD__.' expects argument volume greater than 0.');
-        }
-        if (config('mengine.mengine.strict_mode')) { // In strict mode, the decimal places cannot exceed the configured length.
-            $number_string = strval($volume); // Convert the number to a string.
-            // Use a regular expression to match the decimal part.
-            if (preg_match('/\.\d{' . $this->accuracy . ',}/', $number_string)) {
-                throw new InvalidArgumentException(__METHOD__.' decimal places exceed the configured length.');
-            }
-        }
-
-        // Truncate the decimal part.
-        $volume = number_format($volume, $this->accuracy, '.', '');
-        $this->volume = bcmul($volume, bcpow(10, $this->accuracy));
+        $this->volume = $this->scaleDecimal($volume, 'volume');
 
         return $this;
     }
@@ -172,18 +175,7 @@ class Order
      */
     public function setPrice($price): Order
     {
-        if (floatval($price) <= 0) {
-            throw new InvalidArgumentException(__METHOD__.' expects argument price greater than 0.');
-        }
-        if (config('mengine.mengine.strict_mode')) {
-            $number_string = strval($price);
-            if (preg_match('/\.\d{' . $this->accuracy . ',}/', $number_string)) {
-                throw new InvalidArgumentException(__METHOD__.' decimal places exceed the configured length.');
-            }
-        }
-
-        $price = number_format($price, $this->accuracy, '.', '');
-        $this->price = bcmul($price, bcpow(10, $this->accuracy));
+        $this->price = $this->scaleDecimal($price, 'price');
 
         return $this;
     }
@@ -194,13 +186,62 @@ class Order
     public function setAccuracy(): Order
     {
         $accuracy = config("mengine.mengine.{$this->symbol}_accuracy") ?? config('mengine.mengine.accuracy');
-        if (floor(0) !== (floatval($accuracy) - $accuracy)) {
-            throw new InvalidArgumentException(__METHOD__.' expects argument config.mengine.mengine.accuracy is a positive integer.');
+        $accuracy = filter_var($accuracy, FILTER_VALIDATE_INT, ['options' => [
+            'min_range' => 0,
+            'max_range' => 308,
+        ]]);
+        if ($accuracy === false) {
+            throw new InvalidArgumentException('Trading precision must be an integer between 0 and 308.');
         }
 
         $this->accuracy = $accuracy;
 
         return $this;
+    }
+
+    /**
+     * Format scaled values from legacy serialized orders for BCMath and Redis.
+     */
+    public static function units($value): string
+    {
+        return is_float($value) ? sprintf('%.0F', $value) : (string) $value;
+    }
+
+    private function scaleDecimal($value, string $field): string
+    {
+        if (is_float($value) && is_finite($value)) {
+            // JSON uses scientific notation for small floats, with a
+            // synthetic ".0" when the significand is an integer.
+            $value = preg_replace('/\.0(?=[eE])/', '', json_encode($value));
+        } elseif (is_int($value)) {
+            $value = (string) $value;
+        }
+
+        if (!is_string($value) || !preg_match('/^\+?(\d*)(?:\.(\d*))?(?:[eE]([+-]?\d+))?$/D', $value, $parts)) {
+            throw new InvalidArgumentException("Order $field must be a positive decimal number.");
+        }
+
+        $integer = $parts[1];
+        $fraction = $parts[2] ?? '';
+        $digits = ltrim($integer.$fraction, '0');
+        $exponent = max(-1000000000, min(1000000000, (int) ($parts[3] ?? 0)));
+        if (config('mengine.mengine.strict_mode') && strlen($fraction) - $exponent > $this->accuracy) {
+            throw new InvalidArgumentException("Order $field has more decimal places than the configured precision.");
+        }
+
+        $leadingZeros = strlen($integer) + strlen($fraction) - strlen($digits);
+        $length = strlen($integer) + $exponent + $this->accuracy - $leadingZeros;
+        if ($digits === '' || $length < 1 || $length > 16) {
+            throw new InvalidArgumentException("Order $field is outside the supported range.");
+        }
+
+        $units = str_pad(substr($digits, 0, $length), $length, '0');
+        // Redis sorted set scores must distinguish every supported price.
+        if (bccomp($units, '9007199254740991', 0) > 0) {
+            throw new InvalidArgumentException("Order $field is outside the supported range.");
+        }
+
+        return $units;
     }
 
     /**

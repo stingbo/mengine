@@ -14,9 +14,12 @@ class LinkService
 
     public $current;
 
-    public function __construct($link_name)
+    private ?BookTransaction $transaction;
+
+    public function __construct($link_name, ?BookTransaction $transaction = null)
     {
         $this->link = $link_name;
+        $this->transaction = $transaction;
     }
 
     /**
@@ -153,7 +156,9 @@ class LinkService
      */
     public function getNode($field)
     {
-        $node = Redis::hget($this->link, $field);
+        $node = $this->transaction
+            ? $this->transaction->hget($this->link, $field)
+            : Redis::hget($this->link, $field);
 
         if ($node) {
             return unserialize($node);
@@ -167,6 +172,12 @@ class LinkService
      */
     public function setNode($field, $order)
     {
+        if ($this->transaction) {
+            $this->transaction->hset($this->link, $field, serialize($order));
+
+            return;
+        }
+
         return Redis::hset($this->link, $field, serialize($order));
     }
 
@@ -176,15 +187,15 @@ class LinkService
     public function deleteNode($order)
     {
         if ($order->is_first && $order->is_last) { // 只有一个节点则全删除
-            Redis::hdel($this->link, 'first');
-            Redis::hdel($this->link, 'last');
-            Redis::hdel($this->link, $order->node);
+            $this->removeNode('first');
+            $this->removeNode('last');
+            $this->removeNode($order->node);
         } elseif ($order->is_first) { // 首节点
             $next = $this->getNext();
             if (!$next) {
                 throw new InvalidParamException(__METHOD__.' expects next node is not empty.');
             }
-            Redis::hdel($this->link, $order->node);
+            $this->removeNode($order->node);
 
             $next->is_first = true;
             $next->prev_node = null;
@@ -195,7 +206,7 @@ class LinkService
             if (!$prev) {
                 throw new InvalidParamException(__METHOD__.' expects prev node is not empty.');
             }
-            Redis::hdel($this->link, $order->node);
+            $this->removeNode($order->node);
 
             $prev->is_last = true;
             $prev->next_node = null;
@@ -210,9 +221,18 @@ class LinkService
             $prev->next_node = $next->node;
             $next->prev_node = $prev->node;
 
-            Redis::hdel($this->link, $order->node);
+            $this->removeNode($order->node);
             $this->setNode($next->node, $next);
             $this->setNode($prev->node, $prev);
+        }
+    }
+
+    private function removeNode(string $field): void
+    {
+        if ($this->transaction) {
+            $this->transaction->hdel($this->link, $field);
+        } else {
+            Redis::hdel($this->link, $field);
         }
     }
 }
