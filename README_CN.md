@@ -1,5 +1,8 @@
 # Laravel Package for Matching Engine
 
+[![PHP 8.4+](https://img.shields.io/badge/PHP-8.4%2B-777BB4?logo=php)](https://www.php.net/)
+[![Packagist version](https://img.shields.io/packagist/v/sting_bo/mengine)](https://packagist.org/packages/sting_bo/mengine)
+
 ## 快速开始
 
 - 安装: `composer require sting_bo/mengine`
@@ -7,7 +10,9 @@
 
 
 ### 依赖
-* predis
+* PHP 8.4 及以上的 PHP 8 版本
+* BCMath 扩展
+* Predis 2.4+ 或 3.1+
 
 ### 号外
 
@@ -148,7 +153,7 @@ $ms->getDepth($symbol, $transaction);
 
 升级时先停止旧 worker，再启动新 worker，确保所有写入方使用同一提交协议。旧订单簿中仍精确的价位可以继续读取。若旧价位的价格或数量已经错误舍入，升级时需要核对并重建这些价位。一个交易对的 Redis 键必须位于同一实例或同一集群槽位。
 
-使用 `MENGINE_REDIS_PORT=6379 php tests/regression.php` 对测试 Redis 实例运行回归测试。测试依赖 BCMath 和 PhpRedis，并使用两个 Redis 连接模拟 worker 交错执行。
+使用 `MENGINE_REDIS_PORT=6379 php tests/regression.php` 对测试 Redis 实例运行回归测试。测试依赖 BCMath，并使用两个 Redis 连接模拟 worker 交错执行。默认使用 PhpRedis。安装 Composer 依赖后，可设置 `MENGINE_REDIS_DRIVER=predis` 改用 Predis。
 
 ### 总结
 

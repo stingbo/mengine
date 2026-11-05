@@ -202,12 +202,12 @@ class Order
     /**
      * Format scaled values from legacy serialized orders for BCMath and Redis.
      */
-    public static function units($value): string
+    public static function units(mixed $value): string
     {
         return is_float($value) ? sprintf('%.0F', $value) : (string) $value;
     }
 
-    private function scaleDecimal($value, string $field): string
+    private function scaleDecimal(mixed $value, string $field): string
     {
         if (is_float($value) && is_finite($value)) {
             // JSON uses scientific notation for small floats, with a

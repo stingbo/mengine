@@ -15,7 +15,7 @@ final class BookTransaction
     private array $fields = [];
     private array $commands = [];
 
-    public static function run(string $symbol, callable $plan)
+    public static function run(string $symbol, callable $plan): mixed
     {
         $key = $symbol.':mengine:revision';
         for ($attempt = 0; $attempt < 8; ++$attempt) {
@@ -38,7 +38,7 @@ final class BookTransaction
         throw new RuntimeException('The order book changed during the operation. Retry the job.');
     }
 
-    public function hget($key, $field): ?string
+    public function hget(string $key, string $field): ?string
     {
         if (!array_key_exists($field, $this->fields[$key] ?? [])) {
             $value = Redis::hget($key, $field);
@@ -48,24 +48,24 @@ final class BookTransaction
         return $this->fields[$key][$field];
     }
 
-    public function hset($key, $field, $value): void
+    public function hset(string $key, string $field, string $value): void
     {
         $this->fields[$key][$field] = $value;
         $this->commands[] = ['HSET', $key, $field, $value];
     }
 
-    public function hdel($key, $field): void
+    public function hdel(string $key, string $field): void
     {
         $this->fields[$key][$field] = null;
         $this->commands[] = ['HDEL', $key, $field, ''];
     }
 
-    public function zadd($key, $score, $member): void
+    public function zadd(string $key, string $score, string $member): void
     {
         $this->commands[] = ['ZADD', $key, $score, $member];
     }
 
-    public function zrem($key, $member): void
+    public function zrem(string $key, string $member): void
     {
         $this->commands[] = ['ZREM', $key, $member, ''];
     }

@@ -1,5 +1,8 @@
 # Laravel Package for Matching Engine
 
+[![PHP 8.4+](https://img.shields.io/badge/PHP-8.4%2B-777BB4?logo=php)](https://www.php.net/)
+[![Packagist version](https://img.shields.io/packagist/v/sting_bo/mengine)](https://packagist.org/packages/sting_bo/mengine)
+
 - [中文文档](README_CN.md)
 
 ## Quick Start
@@ -9,7 +12,9 @@
 
 
 ### Dependencies
-* predis
+* PHP 8.4 or later in the PHP 8 series
+* BCMath extension
+* Predis 2.4+ or 3.1+
 
 ### News
 
@@ -149,7 +154,7 @@ Order book changes and pending events are saved in one Redis operation. Queue re
 
 Deploy by stopping old workers before starting new ones so all writers use the same commit protocol. Existing exact legacy price levels can still be read. Reconcile and rebuild any legacy levels whose prices or quantities were already rounded incorrectly. Order book commits require the pair's keys to be on the same Redis server or cluster slot.
 
-Run the regression suite against a test Redis instance with `MENGINE_REDIS_PORT=6379 php tests/regression.php`. The suite requires BCMath and PhpRedis and uses separate Redis connections to interleave two workers.
+Run the regression suite against a test Redis instance with `MENGINE_REDIS_PORT=6379 php tests/regression.php`. The suite requires BCMath and uses separate Redis connections to interleave two workers. It uses PhpRedis by default. After installing Composer dependencies, set `MENGINE_REDIS_DRIVER=predis` to run it with Predis.
 
 ### Summary
 

@@ -52,10 +52,17 @@ function rejectedCancellation(callable $request, int $code): void
 }
 
 $port = (int) (getenv('MENGINE_REDIS_PORT') ?: 6379);
-$primary = new Redis();
-$primary->connect('127.0.0.1', $port);
-$secondary = new Redis();
-$secondary->connect('127.0.0.1', $port);
+if (getenv('MENGINE_REDIS_DRIVER') === 'predis') {
+    require getenv('MENGINE_COMPOSER_AUTOLOAD') ?: __DIR__.'/../vendor/autoload.php';
+    $connection = ['host' => '127.0.0.1', 'port' => $port];
+    $primary = new Predis\Client($connection);
+    $secondary = new Predis\Client($connection);
+} else {
+    $primary = new Redis();
+    $primary->connect('127.0.0.1', $port);
+    $secondary = new Redis();
+    $secondary->connect('127.0.0.1', $port);
+}
 RedisFacade::$client = $primary;
 $engine = new MengineService();
 

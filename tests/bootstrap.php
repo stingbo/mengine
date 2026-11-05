@@ -44,7 +44,7 @@ namespace Illuminate\Support\Facades {
                 $callback();
             }
 
-            if ($method === 'eval') {
+            if ($method === 'eval' && self::$client instanceof \Redis) {
                 [$script, $keyCount] = $arguments;
                 return self::$client->eval($script, array_slice($arguments, 2), $keyCount);
             }
