@@ -1,7 +1,8 @@
 # Laravel Package for Matching Engine
 
-[![PHP 8.4+](https://img.shields.io/badge/PHP-8.4%2B-777BB4?logo=php)](https://www.php.net/)
+[![CI 状态](https://github.com/stingbo/mengine/actions/workflows/ci.yml/badge.svg?branch=master)](https://github.com/stingbo/mengine/actions/workflows/ci.yml)
 [![Packagist version](https://img.shields.io/packagist/v/sting_bo/mengine)](https://packagist.org/packages/sting_bo/mengine)
+[![PHP 8.4+](https://img.shields.io/badge/PHP-%3E%3D%208.4-777BB4)](https://www.php.net/releases/8.4/en.php)
 
 ## 快速开始
 
