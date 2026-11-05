@@ -35,9 +35,12 @@ namespace Illuminate\Support\Facades {
     {
         public static $client;
         public static $beforeWrite;
+        public static array $commands = [];
 
         public static function __callStatic($method, $arguments)
         {
+            self::$commands[] = [strtolower($method), $arguments[0]];
+
             if ($method === 'eval' && self::$beforeWrite) {
                 $callback = self::$beforeWrite;
                 self::$beforeWrite = null;
@@ -68,7 +71,7 @@ namespace {
         if (strpos($class, $prefix) === 0) {
             require __DIR__.'/../src/'.str_replace('\\', '/', substr($class, strlen($prefix))).'.php';
         }
-    });
+    }, prepend: true);
 
     function config($key)
     {

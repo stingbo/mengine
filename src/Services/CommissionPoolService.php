@@ -35,7 +35,7 @@ class CommissionPoolService extends AbstractCommissionPool
                 }
             }
 
-            $prices = (new MengineService())->getMutexDepth($order->symbol, $order->transaction, Order::units($order->price));
+            $prices = (new MengineService())->getMatchingPrices($order->symbol, $order->transaction, Order::units($order->price));
             $depth = new DepthLinkService($redis);
             $this->matchPrices($order, $prices, $redis, $depth, $events);
             if ($order->volume === '0') {
@@ -99,7 +99,7 @@ class CommissionPoolService extends AbstractCommissionPool
     public function matchUp(Order $order, array $list): ?Order
     {
         $order->volume = $this->apply($order, 'match:'.Order::units($order->volume), function (BookTransaction $redis, Order $order, array &$events) use ($list) {
-            $this->matchPrices($order, $list, $redis, new DepthLinkService($redis), $events);
+            $this->matchPrices($order, array_column($list, 'price'), $redis, new DepthLinkService($redis), $events);
 
             return $order->volume;
         });
@@ -129,8 +129,8 @@ class CommissionPoolService extends AbstractCommissionPool
 
     private function matchPrices(Order $order, array $prices, BookTransaction $redis, DepthLinkService $depth, array &$events): void
     {
-        foreach ($prices as $level) {
-            $link = new LinkService($order->symbol.':link:'.$level['price'], $redis);
+        foreach ($prices as $price) {
+            $link = new LinkService($order->symbol.':link:'.$price, $redis);
             $this->matchLevel($order, $link, $depth, $events);
             if ($order->volume === '0') {
                 return;

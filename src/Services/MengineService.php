@@ -116,28 +116,16 @@ class MengineService extends AbstractMengine
      */
     public function getDepth($symbol, $transaction): array
     {
-        $depths = [];
-        if (config('mengine.mengine.transaction')[0] == $transaction) {
+        [$buy, $sell] = config('mengine.mengine.transaction');
+        if ($buy == $transaction) {
             $prices = Redis::zrevrange($symbol.':'.$transaction, 0, -1);
-            foreach ($prices as $key => $price) {
-                $volume = Redis::hget($symbol.':depth', $symbol.':depth:'.$price);
-                $depths[$key] = [
-                    'price' => $price,
-                    'volume' => $volume,
-                ];
-            }
-        } elseif (config('mengine.mengine.transaction')[1] == $transaction) {
+        } elseif ($sell == $transaction) {
             $prices = Redis::zrange($symbol.':'.$transaction, 0, -1);
-            foreach ($prices as $key => $price) {
-                $volume = Redis::hget($symbol.':depth', $symbol.':depth:'.$price);
-                $depths[$key] = [
-                    'price' => $price,
-                    'volume' => $volume,
-                ];
-            }
+        } else {
+            return [];
         }
 
-        return $depths;
+        return $this->depthForPrices($symbol, $prices);
     }
 
     /**
@@ -145,27 +133,34 @@ class MengineService extends AbstractMengine
      */
     public function getMutexDepth($symbol, $transaction, $price): array
     {
+        return $this->depthForPrices($symbol, $this->getMatchingPrices($symbol, $transaction, $price));
+    }
+
+    public function getMatchingPrices($symbol, $transaction, $price): array
+    {
+        [$buy, $sell] = config('mengine.mengine.transaction');
+        if ($buy == $transaction) {
+            return Redis::zRangeByScore($symbol.':'.$sell, '-inf', $price);
+        }
+        if ($sell == $transaction) {
+            return Redis::zRevRangeByScore($symbol.':'.$buy, '+inf', $price);
+        }
+
+        return [];
+    }
+
+    private function depthForPrices($symbol, array $prices): array
+    {
+        if (!$prices) {
+            return [];
+        }
+
+        $key = $symbol.':depth';
+        $fields = array_map(fn ($price) => $key.':'.$price, $prices);
+        $volumes = array_values(Redis::hmget($key, $fields));
         $depths = [];
-        if (config('mengine.mengine.transaction')[0] == $transaction) {
-            $transaction = config('mengine.mengine.transaction')[1];
-            $prices = Redis::zRangeByScore($symbol.':'.$transaction, '-inf', $price);
-            foreach ($prices as $key => $price) {
-                $volume = Redis::hget($symbol.':depth', $symbol.':depth:'.$price);
-                $depths[$key] = [
-                    'price' => $price,
-                    'volume' => $volume,
-                ];
-            }
-        } elseif (config('mengine.mengine.transaction')[1] == $transaction) {
-            $transaction = config('mengine.mengine.transaction')[0];
-            $prices = Redis::zRevRangeByScore($symbol.':'.$transaction, '+inf', $price);
-            foreach ($prices as $key => $price) {
-                $volume = Redis::hget($symbol.':depth', $symbol.':depth:'.$price);
-                $depths[$key] = [
-                    'price' => $price,
-                    'volume' => $volume,
-                ];
-            }
+        foreach ($prices as $index => $price) {
+            $depths[$index] = ['price' => $price, 'volume' => $volumes[$index]];
         }
 
         return $depths;

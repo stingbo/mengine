@@ -1,5 +1,9 @@
 <?php
 
+$usePredis = getenv('MENGINE_REDIS_DRIVER') === 'predis';
+if ($usePredis) {
+    require getenv('MENGINE_COMPOSER_AUTOLOAD') ?: __DIR__.'/../vendor/autoload.php';
+}
 require __DIR__.'/bootstrap.php';
 
 use Illuminate\Support\Facades\Redis as RedisFacade;
@@ -52,8 +56,7 @@ function rejectedCancellation(callable $request, int $code): void
 }
 
 $port = (int) (getenv('MENGINE_REDIS_PORT') ?: 6379);
-if (getenv('MENGINE_REDIS_DRIVER') === 'predis') {
-    require getenv('MENGINE_COMPOSER_AUTOLOAD') ?: __DIR__.'/../vendor/autoload.php';
+if ($usePredis) {
     $connection = ['host' => '127.0.0.1', 'port' => $port];
     $primary = new Predis\Client($connection);
     $secondary = new Predis\Client($connection);
@@ -123,6 +126,66 @@ $tests = [
         check(true, $engine->isHashDeleted($order));
         check('100000000', $engine->getDepth($GLOBALS['symbol'], 'sell')[0]['volume']);
         check(1, count($GLOBALS['events']));
+    },
+    'depth queries batch quantities and preserve side order and missing values' => function () use ($engine, $primary) {
+        $symbol = $GLOBALS['symbol'];
+        RedisFacade::$commands = [];
+        check([], $engine->getDepth($symbol, 'invalid'));
+        check([], RedisFacade::$commands);
+        check([], $engine->getDepth($symbol, 'buy'));
+        check(['zrevrange'], array_column(RedisFacade::$commands, 0));
+
+        $missing = $primary instanceof Redis ? false : null;
+        foreach (['buy' => ['300', '200', '100'], 'sell' => ['100', '200', '300']] as $side => $prices) {
+            foreach ($prices as $price) {
+                $primary->zadd($symbol.':'.$side, $price, $price);
+            }
+            $primary->hset($symbol.':depth', $symbol.':depth:100', '15');
+            $primary->hset($symbol.':depth', $symbol.':depth:300', '25');
+
+            RedisFacade::$commands = [];
+            $depth = $engine->getDepth($symbol, $side);
+            check($prices, array_column($depth, 'price'));
+            check($side === 'buy' ? ['25', $missing, '15'] : ['15', $missing, '25'], array_column($depth, 'volume'));
+            check(['price', 'volume'], array_keys($depth[1]));
+            check([$side === 'buy' ? 'zrevrange' : 'zrange', 'hmget'], array_column(RedisFacade::$commands, 0));
+        }
+
+        RedisFacade::$commands = [];
+        check([['price' => '100', 'volume' => '15'], ['price' => '200', 'volume' => $missing]], $engine->getMutexDepth($symbol, 'buy', '200'));
+        check(['zrangebyscore', 'hmget'], array_column(RedisFacade::$commands, 0));
+        RedisFacade::$commands = [];
+        check([['price' => '300', 'volume' => '25'], ['price' => '200', 'volume' => $missing]], $engine->getMutexDepth($symbol, 'sell', '200'));
+        check(['zrevrangebyscore', 'hmget'], array_column(RedisFacade::$commands, 0));
+    },
+    'matching reads quantities only at filled prices and keeps price and FIFO priority' => function () use ($engine) {
+        $symbol = $GLOBALS['symbol'];
+        try {
+            foreach (['sell', 'buy'] as $makerSide) {
+                $GLOBALS['symbol'] = $symbol.':'.$makerSide;
+                $takerSide = $makerSide === 'sell' ? 'buy' : 'sell';
+                $prices = $makerSide === 'sell' ? ['3', '2', '3', '4', '1'] : ['2', '3', '2', '1', '4'];
+                foreach ($prices as $id => $price) {
+                    $engine->pushQueue(order($id + 1, $makerSide, '1', $price));
+                    runJob(array_shift($GLOBALS['jobs']));
+                }
+
+                $GLOBALS['events'] = [];
+                $engine->pushQueue(order(6, $takerSide, '3', $prices[0]));
+                RedisFacade::$commands = [];
+                runJob(array_shift($GLOBALS['jobs']));
+
+                check(['5', '2', '1'], array_map(fn ($event) => $event->match_order->oid, $GLOBALS['events']));
+                $priceAndDepthReads = array_values(array_filter(RedisFacade::$commands, function ($command) {
+                    [$name, $key] = $command;
+                    return in_array($name, ['zrangebyscore', 'zrevrangebyscore'], true)
+                        || (in_array($name, ['hget', 'hmget'], true) && $key === $GLOBALS['symbol'].':depth');
+                }));
+                check([$takerSide === 'buy' ? 'zrangebyscore' : 'zrevrangebyscore', 'hget', 'hget', 'hget'], array_column($priceAndDepthReads, 0));
+            }
+        } finally {
+            $GLOBALS['symbol'] = $symbol;
+        }
     },
     'adjacent large prices remain distinct in Redis' => function () use ($engine) {
         $engine->pushQueue(order(1, 'sell', '1', '90071992.54740991'));
