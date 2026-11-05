@@ -187,6 +187,39 @@ $tests = [
             $GLOBALS['symbol'] = $symbol;
         }
     },
+    'fills and cancellations remove empty price levels and allow relisting' => function () use ($engine, $primary) {
+        $symbol = $GLOBALS['symbol'];
+        $otherLevel = order(1, 'sell', '7', '2');
+        $maker = order(2, 'sell', '3');
+        foreach ([$otherLevel, $maker] as $order) {
+            $engine->pushQueue($order);
+            runJob(array_shift($GLOBALS['jobs']));
+        }
+
+        $engine->pushQueue(order(3, 'buy', '1'));
+        runJob(array_shift($GLOBALS['jobs']));
+        check('200000000', $primary->hget($maker->order_depth_hash_key, $maker->order_depth_hash_field));
+
+        foreach (['fill', 'full cancel', 'partial cancel'] as $index => $operation) {
+            if ($operation === 'fill') {
+                $engine->pushQueue(order(4, 'buy', '2'));
+            } else {
+                $engine->deleteOrder($maker, $operation === 'partial cancel' ? '4' : null);
+            }
+            runJob(array_shift($GLOBALS['jobs']));
+
+            check(false, (bool) $primary->hexists($maker->order_depth_hash_key, $maker->order_depth_hash_field));
+            check([['price' => '200000000', 'volume' => '700000000']], $engine->getDepth($symbol, 'sell'));
+
+            $maker = order(5 + $index, 'sell', '4');
+            $engine->pushQueue($maker);
+            runJob(array_shift($GLOBALS['jobs']));
+            check([
+                ['price' => '100000000', 'volume' => '400000000'],
+                ['price' => '200000000', 'volume' => '700000000'],
+            ], $engine->getDepth($symbol, 'sell'));
+        }
+    },
     'adjacent large prices remain distinct in Redis' => function () use ($engine) {
         $engine->pushQueue(order(1, 'sell', '1', '90071992.54740991'));
         $engine->pushQueue(order(2, 'sell', '1', '90071992.54740990'));

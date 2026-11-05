@@ -112,17 +112,36 @@ class DepthLinkService
      */
     public function deleteZset(Order $order)
     {
-        // 判断对应的委托量，如果没有了则从深度列表里删除
         $key = $order->order_depth_hash_key;
         $field = $order->order_depth_hash_field;
-        $volume = $this->transaction ? $this->transaction->hget($key, $field) : Redis::hget($key, $field);
-        if ($volume <= 0) {
-            if ($this->transaction) {
-                $this->transaction->zrem($order->order_list_zset_key, $this->priceMember($order));
-            } else {
-                Redis::zrem($order->order_list_zset_key, $this->priceMember($order));
+        $zset = $order->order_list_zset_key;
+        $member = $this->priceMember($order);
+
+        if ($this->transaction) {
+            $volume = $this->transaction->hget($key, $field);
+            if ($volume <= 0) {
+                $this->transaction->zrem($zset, $member);
+                if ($volume === '0') {
+                    $this->transaction->hdel($key, $field);
+                }
             }
+
+            return;
         }
+
+        // Check the current depth and remove the empty level in one operation.
+        $script = <<<'LUA'
+local volume = redis.call('HGET', KEYS[1], ARGV[1])
+if not volume or tonumber(volume) <= 0 then
+    redis.call('ZREM', KEYS[2], ARGV[2])
+    if volume == '0' then
+        redis.call('HDEL', KEYS[1], ARGV[1])
+    end
+end
+return 1
+LUA;
+
+        Redis::eval($script, 2, $key, $zset, $field, $member);
     }
 
     private function priceMember(Order $order): string
